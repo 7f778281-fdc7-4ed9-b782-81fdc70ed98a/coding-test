@@ -76,4 +76,9 @@ public class Order {
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
     }
+
+    public void subtotalAmount(BigDecimal shipping, BigDecimal discount) {
+        this.totalAmount = totalAmount.add(shipping).subtract(discount);
+    }
+
 }

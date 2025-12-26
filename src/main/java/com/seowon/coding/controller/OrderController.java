@@ -1,6 +1,10 @@
 package com.seowon.coding.controller;
 
+import com.seowon.coding.domain.dto.CreateOrderRequestDTO;
+import com.seowon.coding.domain.dto.CreateOrderResponseDTO;
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.OrderItem;
+import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -67,4 +71,19 @@ public class OrderController {
      * }
      */
     //
+    @PostMapping
+    public ResponseEntity<CreateOrderResponseDTO> createOrder(@RequestBody CreateOrderRequestDTO request) {
+
+        String customerName = request.getCustomerName();
+        String customerEmail = request.getCustomerEmail();
+        List<Long> productIds = request.getProductIds();
+        List<Integer> quantities = request.getQuantities();
+
+        Order order = orderService.placeOrder(customerName, customerEmail, productIds, quantities);
+
+        List<Product> products = order.getItems().stream().map(OrderItem::getProduct).toList();
+        CreateOrderResponseDTO response = new CreateOrderResponseDTO(order.getCustomerName(), order.getCustomerEmail(), products);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 }
