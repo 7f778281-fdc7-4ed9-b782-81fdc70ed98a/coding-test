@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,10 +25,11 @@ public class ProductService {
     }
     
     @Transactional(readOnly = true)
-    public Optional<Product> getProductById(Long id) {
+    public List<Product> getProductById(Long id) {
+
         return productRepository.findById(id);
     }
-    
+
     public Product createProduct(Product product) {
         return productRepository.save(product);
     }
@@ -39,7 +41,12 @@ public class ProductService {
         product.setId(id);
         return productRepository.save(product);
     }
-    
+
+    public List<Product> getProductsByIds(List<Long> productIds) {
+
+        return productRepository.findAllById(productIds);
+    }
+
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -51,7 +58,8 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+
+        return productRepository.findByCategory(category);
     }
 
     /**
