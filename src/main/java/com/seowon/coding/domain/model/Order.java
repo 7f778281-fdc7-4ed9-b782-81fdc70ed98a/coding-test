@@ -56,6 +56,14 @@ public class Order {
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+    public void applyShipping(BigDecimal money) {
+        this.totalAmount = totalAmount.add(money);
+    }
+
+    public void applyDiscount(BigDecimal money) {
+        this.totalAmount = totalAmount.subtract(money);
+    }
     
     public void markAsProcessing() {
         this.status = OrderStatus.PROCESSING;
