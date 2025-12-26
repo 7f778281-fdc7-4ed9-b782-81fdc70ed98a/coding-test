@@ -12,12 +12,12 @@ class PermissionChecker {
      * 테스트 코드`PermissionCheckerTest`를 활용하시면 리펙토링에 도움이 됩니다.
      */
     public static boolean hasPermission(
-            String userId,
-            String targetResource,
-            String targetAction,
-            List<User> users,
-            List<UserGroup> groups,
-            List<Policy> policies
+        String userId,
+        String targetResource,
+        String targetAction,
+        List<User> users,
+        List<UserGroup> groups,
+        List<Policy> policies
     ) {
         for (User user : users) {
             if (user.id.equals(userId)) {
@@ -46,6 +46,7 @@ class PermissionChecker {
 }
 
 class User {
+
     String id;
     List<String> groupIds;
 
@@ -56,6 +57,7 @@ class User {
 }
 
 class UserGroup {
+
     String id;
     List<String> policyIds;
 
@@ -66,6 +68,7 @@ class UserGroup {
 }
 
 class Policy {
+
     String id;
     List<Statement> statements;
 
@@ -76,6 +79,7 @@ class Policy {
 }
 
 class Statement {
+
     List<String> actions;
     List<String> resources;
 

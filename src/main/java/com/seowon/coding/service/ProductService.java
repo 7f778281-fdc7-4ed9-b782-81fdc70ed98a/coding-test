@@ -15,23 +15,23 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class ProductService {
-    
+
     private final ProductRepository productRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Product> getAllProducts() {
         return productRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Product> getProductById(Long id) {
         return productRepository.findById(id);
     }
-    
+
     public Product createProduct(Product product) {
         return productRepository.save(product);
     }
-    
+
     public Product updateProduct(Long id, Product product) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -39,7 +39,7 @@ public class ProductService {
         product.setId(id);
         return productRepository.save(product);
     }
-    
+
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -49,9 +49,7 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<Product> findProductsByCategory(String category) {
-        // TODO #1: 구현 항목
-        // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+        return productRepository.findByCategory(category);
     }
 
     /**
@@ -64,7 +62,7 @@ public class ProductService {
         // 잘못된 구현 예시: double 사용, 루프 내 개별 조회/저장, 하드코딩 세금/반올림 규칙
         for (Long id : productIds) {
             Product p = productRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
 
             double base = p.getPrice() == null ? 0.0 : p.getPrice().doubleValue();
             double changed = base + (base * (percentage / 100.0)); // 부동소수점 오류 가능
