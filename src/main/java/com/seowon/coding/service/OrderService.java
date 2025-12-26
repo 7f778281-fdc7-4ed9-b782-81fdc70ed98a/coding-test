@@ -53,8 +53,6 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-
-
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -72,12 +70,7 @@ public class OrderService {
                 .build();
 
         for (int idx = 0; idx < productIds.size(); idx++) {
-            Product product = productRepository.getReferenceById(productIds.get(idx));
-            if (!product.isInStock()) {
-                return null;
-            }
-            product.decreaseStock(1);
-            productRepository.save(product);
+            Product product = getProductDecreaseByproductId(productIds.get(idx));
 
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
@@ -91,6 +84,8 @@ public class OrderService {
 
         return order;
     }
+
+
 
     /**
      * TODO #4 (리펙토링): Service 에 몰린 도메인 로직을 도메인 객체 안으로 이동
@@ -188,4 +183,15 @@ public class OrderService {
         processingStatusRepository.save(ps);
     }
 
+    private Product getProductDecreaseByproductId(Long id) {
+        Product product = productRepository.getReferenceById(id);
+        if (product.isInStock()) {
+            return null;
+        }
+
+        product.decreaseStock(1);
+        productRepository.save(product);
+
+        return product;
+    }
 }
