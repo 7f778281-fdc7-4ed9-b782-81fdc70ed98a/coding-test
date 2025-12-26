@@ -145,17 +145,14 @@ public class OrderService {
                     .quantity(qty)
                     .price(product.getPrice())
                     .build();
-            order.getItems().add(item);
+            order.addItem(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(item.getSubtotal());
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.calculateTotalAmount(subtotal, couponCode);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
