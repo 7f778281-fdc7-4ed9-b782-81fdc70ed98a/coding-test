@@ -22,21 +22,21 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
+
 
     public Order updateOrder(Long id, Order order) {
         if (!orderRepository.existsById(id)) {
@@ -45,7 +45,7 @@ public class OrderService {
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
@@ -53,8 +53,7 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-
-
+    @Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +63,33 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+
+        for (int i = 0; i < productIds.size(); i++) {
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow(
+                    () -> new IllegalArgumentException("해당 제품을 찾을 수 없습니다")
+            );
+            Integer quantity = quantities.get(i);
+
+            product.decreaseStock(quantity);
+            OrderItem orderItem = OrderItem.builder()
+                    .product(product)
+                    .quantity(quantity)
+                    .price(product.getPrice())
+                    .build();
+
+            order.addItem(orderItem);
+        }
+
+        orderRepository.save(order);
+        return order;
     }
 
     /**
@@ -72,6 +97,7 @@ public class OrderService {
      * - Repository 조회는 도메인 객체 밖에서 해결하여 의존 차단 합니다.
      * - #3 에서 추가한 도메인 메소드가 있을 경우 사용해도 됩니다.
      */
+    @Transactional
     public Order checkoutOrder(String customerName,
                                String customerEmail,
                                List<OrderProduct> orderProducts,
@@ -93,7 +119,6 @@ public class OrderService {
                 .build();
 
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
@@ -103,27 +128,21 @@ public class OrderService {
             if (qty <= 0) {
                 throw new IllegalArgumentException("quantity must be positive: " + qty);
             }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+            product.decreaseStock(qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
                     .product(product)
                     .quantity(qty)
-                    .price(product.getPrice())
+                    .price(product.getPrice()) // 쿠폰?
                     .build();
-            order.getItems().add(item);
-
-            product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            order.addItem(item);
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
+//        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
+//        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
@@ -141,13 +160,21 @@ public class OrderService {
         processingStatusRepository.save(ps);
 
         int processed = 0;
+        // 아래 for문에서 (orderIds == null ? List.<Long>of() : orderIds) 를 쓰는 것은 가독성에서도 좋지 않고
+        // orderIds가 null이면 빈 List를 반환하게 되니 if - else 로 orderIds가 null이 아래 for문을 건너뛰게 하거나
+        // for문 바깥으로 해당 코드를 빼내는 것이 좋아보입니다.
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
+
+                // 만약 이 쪽에서 메일과 같은 외부 시스템이 연동된다면, 아웃박스 패턴을 사용해서
+                // 이 쪽 작업과 무관하게 진행되도록 하는 것이 좋아보입니다.
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
+                // 이 부분에서 바로 throw를 하게 되면 이전에 했던 큰 비용의 작업도 같이 롤백될 수 있으니
+                // 각 작업을 새로운 트랜잭션에서 시작하거나, 예외를 catch해도 log만 찍는 것이 좋아보입니다.
             }
         }
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
