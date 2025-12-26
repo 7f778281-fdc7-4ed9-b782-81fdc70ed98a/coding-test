@@ -7,6 +7,7 @@ import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
+import com.seowon.coding.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -22,41 +23,67 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
+
 
     public Order updateOrder(Long id, Order order) {
-        if (!orderRepository.existsById(id)) {
-            throw new RuntimeException("Order not found with id: " + id);
-        }
+        validateNotFoundExceptionId(id);
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
-        if (!orderRepository.existsById(id)) {
-            throw new RuntimeException("Order not found with id: " + id);
-        }
+        validateNotFoundExceptionId(id);
         orderRepository.deleteById(id);
     }
 
 
-
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .totalAmount(BigDecimal.ZERO)
+                .orderDate(LocalDateTime.now())
+                .items(new ArrayList<>())
+                .build();
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (int i = 0; i < productIds.size(); i++) {
+            Long id = productIds.get(i);
+            Integer qty = quantities.get(i);
+
+            Product product = productRepository.findById(id).orElseThrow(IllegalArgumentException::new);
+            product.decreaseStock(qty);
+
+            OrderItem item = OrderItem
+                    .builder()
+                    .product(product)
+                    .quantity(qty)
+                    .price(product.getPrice())
+                    .build();
+            order.getItems().add(item);
+
+            BigDecimal itemAmount = product.getPrice().multiply(BigDecimal.valueOf(qty));
+
+            total = total.add(itemAmount);
+        }
+
         // * 주어진 고객 정보로 새 Order를 생성
         // * 지정된 Product를 주문에 추가
         // * order 의 상태를 PENDING 으로 변경
@@ -64,7 +91,7 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        return orderRepository.save(order);
     }
 
     /**
@@ -153,6 +180,12 @@ public class OrderService {
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);
+    }
+
+    private void validateNotFoundExceptionId(final Long id) {
+        if (!orderRepository.existsById(id)) {
+            throw new RuntimeException("Order not found with id: " + id);
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
