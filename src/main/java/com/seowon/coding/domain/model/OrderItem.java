@@ -32,7 +32,13 @@ public class OrderItem {
     private BigDecimal price; // Price at the time of order
 
     @Builder
-    public OrderItem(Order order, Product product, int quantity, Bigdecimal price) {
+    public OrderItem(
+        Order order,
+        Product product,
+        int quantity,
+        BigDecimal price
+    ) {
+
     }
 
     public static OrderItem of(
