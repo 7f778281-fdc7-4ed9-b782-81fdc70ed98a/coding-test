@@ -167,13 +167,21 @@ public class OrderService {
         processingStatusRepository.save(ps);
 
         int processed = 0;
+        // 아래 for문에서 (orderIds == null ? List.<Long>of() : orderIds) 를 쓰는 것은 가독성에서도 좋지 않고
+        // orderIds가 null이면 빈 List를 반환하게 되니 if - else 로 orderIds가 null이 아래 for문을 건너뛰게 하거나
+        // for문 바깥으로 해당 코드를 빼내는 것이 좋아보입니다.
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
+
+                // 만약 이 쪽에서 메일과 같은 외부 시스템이 연동된다면, 아웃박스 패턴을 사용해서
+                // 이 쪽 작업과 무관하게 진행되도록 하는 것이 좋아보입니다.
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
+                // 이 부분에서 바로 throw를 하게 되면 이전에 했던 큰 비용의 작업도 같이 롤백될 수 있으니
+                // 각 작업을 새로운 트랜잭션에서 시작하거나, 예외를 catch해도 log만 찍는 것이 좋아보입니다.
             }
         }
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
