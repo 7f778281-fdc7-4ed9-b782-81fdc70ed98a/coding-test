@@ -53,8 +53,6 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-
-
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,8 +62,30 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .build();
+
+        for (int idx = 0; idx < productIds.size(); idx++) {
+            Product product = getProductDecreaseByproductId(productIds.get(idx));
+
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(quantities.get(idx))
+                    .build();
+
+            order.addItem(orderItem);
+        }
+        orderRepository.save(order);
+
+        return order;
     }
+
+
 
     /**
      * TODO #4 (리펙토링): Service 에 몰린 도메인 로직을 도메인 객체 안으로 이동
@@ -163,4 +183,15 @@ public class OrderService {
         processingStatusRepository.save(ps);
     }
 
+    private Product getProductDecreaseByproductId(Long id) {
+        Product product = productRepository.getReferenceById(id);
+        if (product.isInStock()) {
+            return null;
+        }
+
+        product.decreaseStock(1);
+        productRepository.save(product);
+
+        return product;
+    }
 }
