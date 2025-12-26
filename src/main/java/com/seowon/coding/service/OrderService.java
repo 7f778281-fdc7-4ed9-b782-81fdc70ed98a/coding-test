@@ -72,12 +72,18 @@ public class OrderService {
         for(int i = 0; i < size; i++) {
             Product product = productRepository.findById(productIds.get(i)).orElseThrow();
             int orderedQuantity = quantities.get(i);
+            product.decreaseStock(orderedQuantity);
+            if(!product.isInStock()) {
+                product.increaseStock(orderedQuantity);
+                throw new RuntimeException("재고가 부족합니다.");
+            }
+
             OrderItem item = OrderItem.create(saved, product, orderedQuantity, product.getPrice());
 
             saved.addItem(item);
             saved.recalculateTotalAmount();
 
-            product.decreaseStock(orderedQuantity);
+
         }
         return saved;
     }
