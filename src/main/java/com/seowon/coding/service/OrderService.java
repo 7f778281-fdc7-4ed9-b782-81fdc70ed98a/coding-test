@@ -56,15 +56,23 @@ public class OrderService {
 
 
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
-        // TODO #3: 구현 항목
-        // * 주어진 고객 정보로 새 Order를 생성
-        // * 지정된 Product를 주문에 추가
-        // * order 의 상태를 PENDING 으로 변경
-        // * orderDate 를 현재시간으로 설정
-        // * order 를 저장
-        // * 각 Product 의 재고를 수정
-        // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.createOrder(customerName, customerEmail);
+
+        for (int i = 0; i < productIds.size(); i++) {
+            Long productId = productIds.get(i);
+
+            Product product = findProduct(productId);
+
+            int quantity = quantities.get(i);
+
+            OrderItem orderItem = OrderItem.createOrderItem(order, product, quantity);
+
+            order.addItem(orderItem);
+
+            product.decreaseStock(quantity);
+        }
+
+        return orderRepository.save(order);
     }
 
     /**
@@ -98,8 +106,7 @@ public class OrderService {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+            Product product = findProduct(pid);
             if (qty <= 0) {
                 throw new IllegalArgumentException("quantity must be positive: " + qty);
             }
@@ -125,6 +132,12 @@ public class OrderService {
         order.setTotalAmount(subtotal.add(shipping).subtract(discount));
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
+    }
+
+    private Product findProduct(Long pid) {
+        Product product = productRepository.findById(pid)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+        return product;
     }
 
     /**
