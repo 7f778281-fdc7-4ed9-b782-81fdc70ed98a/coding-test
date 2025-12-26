@@ -130,10 +130,12 @@ public class OrderService {
     }
 
     /**
-     * TODO #5: 코드 리뷰 - 장시간 작업과 진행률 저장의 트랜잭션 분리
-     * - 시나리오: 일괄 배송 처리 중 진행률을 저장하여 다른 사용자가 조회 가능해야 함.
-     * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
-     * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
+     * 코드 리뷰
+     * JPA의 Dirty Check 기능을 활용하지 않아 불필요한 저장이 반복되고 있습니다.
+     * 예외 처리 미작성이므로 작성이 필요합니다.
+     * 너무 많은 트랜잭션이 하나로 묶이고 있어 분리가 필요해보입니다.
+     * 단일 조회/수정을 bulk 조회/수정으로 수정또는 멀티 스레드를 활용하면 최적화가 가능해보입니다.
+     *
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
