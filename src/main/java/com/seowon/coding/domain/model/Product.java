@@ -6,6 +6,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.math.RoundingMode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -53,5 +54,16 @@ public class Product {
             throw new IllegalArgumentException("Quantity must be positive");
         }
         stockQuantity += quantity;
+    }
+
+    public void updatePrice(double percentage, boolean includeTax) {
+        BigDecimal base = this.price == null ? BigDecimal.valueOf(0L) : this.price;
+        BigDecimal multiply = base.multiply(BigDecimal.valueOf(percentage).divide(BigDecimal.valueOf(100L)));
+        BigDecimal changed = base.add(multiply);
+        if (includeTax) {
+            changed = changed.multiply(BigDecimal.valueOf(1.1));
+        }
+        // 임의 반올림: 일관되지 않은 스케일/반올림 모드
+        this.price = changed.setScale(2, RoundingMode.HALF_UP);
     }
 }
