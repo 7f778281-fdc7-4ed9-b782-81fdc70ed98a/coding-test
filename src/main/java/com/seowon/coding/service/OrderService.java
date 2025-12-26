@@ -54,7 +54,7 @@ public class OrderService {
     }
 
 
-
+    @Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +64,38 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now()) // 또는 @CreationTimestamp 를 orderDate 필드에 정의
+                .build();
+
+        List<Product> productList = productRepository.findAllById(productIds);
+
+        for(int i = 0; i < productList.size(); i++) {
+            Product product = productList.get(i);
+            int quantity = quantities.get(i);
+
+            OrderItem item = OrderItem.builder()
+                    .product(product)
+                    .quantity(quantity)
+                    .price(product.getPrice())
+                    .build();
+
+            order.addItem(item);
+
+            // order 생성 이후 다시 반복하지 않고 한번에 decrease 처리
+            product.decreaseStock(quantity);
+        }
+
+        // CascadeType.ALL로 인해 OrderItem 동시저장
+        // order만 저장하도록 하는 것으로 OrderItem Save 생략
+        orderRepository.save(order);
+        productRepository.saveAll(productList);
+
+        return order;
     }
 
     /**
@@ -116,13 +147,10 @@ public class OrderService {
             order.getItems().add(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(product.priceMultiply(qty)); // multiply 로직을 priceMultiply Method로 개선
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.checkoutTotalAmount(subtotal, couponCode); // shipping, discount 연산을 checkoutTotalAmount Method로 개선
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
@@ -142,6 +170,11 @@ public class OrderService {
 
         int processed = 0;
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
+            /**
+             * catch에서 별도의 처리가 없다는것은 로그와 같은 기록이 전혀 남지 않고 아무 문제가 없었다는 듯이 넘어가는 처리가 되므로
+             * 명확한 이유가 있는게 아니라면 지양해야 한다고 생각합니다.
+             * 최소한 로그는 남겨야 하며 지금과 같이 @Transactional 로 트랜잭션 관리를 하고 있는 상황에서는 예외를 던져 롤백을 처리해야 한다고 생각합니다.
+             */
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
@@ -150,11 +183,22 @@ public class OrderService {
             } catch (Exception e) {
             }
         }
+        /**
+         * 이미 메서드 시작 부분에서 ProcessingStatus를 조회해 영속화된 상태인데 초기화 되지 않았음에도 동일한 데이터의 추가 조회는 불필요하다고 생각합니다.
+         * 재 조회를 하지 않더라도 기존 ps 객체를 통해 Complete로 전환하는게 가능하기 때문입니다.
+         */
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);
     }
 
+    /**
+        REQUIRES_NEW 로 정의하게 됨으로써
+        접근시마다 새로운 트랜잭션을 갖게 되어 기존 트랜잭션과는 독립된 트랜잭션에서 동작하게 됩니다.
+        중간 진행률을 저장하기 위한 목적이라는 점에서 REQUIRES_NEW 가 적합한 선택이지만
+        상위 메서드인 bulkShipOrdersParent 메서드에서 예외 발생시 같이 롤백이 되지 않기 때문에
+        데이터 정합성 측면에서의 이슈를 잘 고려해야 한다고 생각합니다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateProgressRequiresNew(String jobId, int processed, int total) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)

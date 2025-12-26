@@ -19,9 +19,9 @@ class PermissionChecker {
             List<UserGroup> groups,
             List<Policy> policies
     ) {
-        for (User user : users) {
-            if (user.id.equals(userId)) {
-                for (String groupId : user.groupIds) {
+        for (User user : users) { // User user
+            if (user.id.equals(userId)) { // userId가 user.id와 같다면
+                for (String groupId : user.groupIds) { // User.groupIds for
                     for (UserGroup group : groups) {
                         if (group.id.equals(groupId)) {
                             for (String policyId : group.policyIds) {
