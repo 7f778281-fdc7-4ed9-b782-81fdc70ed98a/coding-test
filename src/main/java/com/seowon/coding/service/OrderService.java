@@ -42,7 +42,7 @@ public class OrderService {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
         }
-        order.setId(id);
+        order.updateId(id);
         return orderRepository.save(order);
     }
     
@@ -64,7 +64,28 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        int size = productIds.size();
+
+        Order newOrder = Order.create(customerName, customerEmail, BigDecimal.ZERO);
+        Order saved = orderRepository.save(newOrder);
+
+        for(int i = 0; i < size; i++) {
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow();
+            int orderedQuantity = quantities.get(i);
+            product.decreaseStock(orderedQuantity);
+            if(!product.isInStock()) {
+                product.increaseStock(orderedQuantity);
+                throw new RuntimeException("재고가 부족합니다.");
+            }
+
+            OrderItem item = OrderItem.create(saved, product, orderedQuantity, product.getPrice());
+
+            saved.addItem(item);
+            saved.recalculateTotalAmount();
+
+
+        }
+        return saved;
     }
 
     /**
@@ -83,17 +104,9 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
-
+        Order order = Order.create(customerName, customerEmail, BigDecimal.ZERO);
         BigDecimal subtotal = BigDecimal.ZERO;
+
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
@@ -107,13 +120,8 @@ public class OrderService {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
 
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
+            OrderItem item = OrderItem.create(order, product, qty, product.getPrice());
+            order.addItem(item);
 
             product.decreaseStock(qty);
             subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
@@ -122,8 +130,9 @@ public class OrderService {
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.updateTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.updateStatus(Order.OrderStatus.PROCESSING);
+
         return orderRepository.save(order);
     }
 
@@ -132,6 +141,10 @@ public class OrderService {
      * - 시나리오: 일괄 배송 처리 중 진행률을 저장하여 다른 사용자가 조회 가능해야 함.
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
+     * - 지연 시간이 오래 걸리는 함수를 동기식으로 처리하면 조회에 처리시간이 포함되므로 비동기 처리나 멀티 스레드로 시뮬레이션 함수를 리팩토링하면
+     * 시간이 단축될 것 같습니다.
+     * - catch 절에서 에러에 대한 설명을 로그로 남기는 것이 좋아보입니다.
+     * - 145~148은 단일 함수가 처리하기에는 많은 책임을 지므로 별도 함수로 분리하는 것이 좋아보입니다.
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
@@ -144,7 +157,7 @@ public class OrderService {
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
-                orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
+                orderRepository.findById(orderId).ifPresent(o -> o.updateStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
