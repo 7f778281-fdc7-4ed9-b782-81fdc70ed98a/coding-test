@@ -1,5 +1,8 @@
 package com.seowon.coding.exception;
 
+import lombok.Getter;
+
+@Getter
 public enum ErrorCode {
     INVALID_CATEGORY_NAME("C001","유효하지 않는 카테고리입니다.");
 
