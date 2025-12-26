@@ -87,6 +87,7 @@ public class OrderService {
                     .order(order)
                     .product(product)
                     .quantity(quantity)
+                    .price(product.getPrice())
                     .build();
             orderItemRepository.save(orderItem);
 
