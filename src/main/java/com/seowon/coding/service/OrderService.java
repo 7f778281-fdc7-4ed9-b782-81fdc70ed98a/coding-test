@@ -86,10 +86,12 @@ public class OrderService {
      * - Repository 조회는 도메인 객체 밖에서 해결하여 의존 차단 합니다.
      * - #3 에서 추가한 도메인 메소드가 있을 경우 사용해도 됩니다.
      */
-    public Order checkoutOrder(String customerName,
+    public Order checkoutOrder(
+        String customerName,
         String customerEmail,
         List<OrderProduct> orderProducts,
-        String couponCode) {
+        String couponCode
+    ) {
         if (customerName == null || customerEmail == null) {
             throw new IllegalArgumentException("customer info required");
         }
