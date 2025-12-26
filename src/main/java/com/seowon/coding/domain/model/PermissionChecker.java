@@ -2,8 +2,11 @@ package com.seowon.coding.domain.model;
 
 
 import lombok.Builder;
+import org.springframework.security.core.parameters.P;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 class PermissionChecker {
 
@@ -19,28 +22,33 @@ class PermissionChecker {
             List<UserGroup> groups,
             List<Policy> policies
     ) {
-        for (User user : users) {
-            if (user.id.equals(userId)) {
-                for (String groupId : user.groupIds) {
-                    for (UserGroup group : groups) {
-                        if (group.id.equals(groupId)) {
-                            for (String policyId : group.policyIds) {
-                                for (Policy policy : policies) {
-                                    if (policy.id.equals(policyId)) {
-                                        for (Statement statement : policy.statements) {
-                                            if (statement.actions.contains(targetAction) &&
-                                                statement.resources.contains(targetResource)) {
-                                                return true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+        Map<String, UserGroup> groupMap = groups.stream().collect(Collectors.toMap(g -> g.id, g -> g));
+
+        Map<String, Policy> policyMap = policies.stream().collect(Collectors.toMap(p -> p.id, p -> p));
+
+        User user = users.stream().filter(u -> u.id.equals(userId))
+                .findFirst().orElse(null);
+
+
+        assert user != null;
+        for (String groupId : user.groupIds) {
+            UserGroup group = groupMap.get(groupId);
+            if (group == null) continue;
+
+
+            for (String policyId : group.policyIds) {
+                Policy policy = policyMap.get(policyId);
+                if (policy == null) continue;
+
+                for (Statement statement : policy.statements) {
+                    if (statement.actions.contains(targetAction) &&
+                            statement.resources.contains(targetResource)) {
+                        return true;
                     }
                 }
             }
         }
+
         return false;
     }
 }
