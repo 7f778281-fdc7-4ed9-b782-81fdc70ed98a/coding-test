@@ -57,6 +57,14 @@ public class Order {
         LocalDateTime orderDate,
         BigDecimal totalAmount
     ) {
+        if (customerName == null || customerEmail == null) {
+            throw new IllegalArgumentException("customer info required");
+        }
+
+        if (orderProducts == null || orderProducts.isEmpty()) {
+            throw new IllegalArgumentException("orderReqs invalid");
+        }
+
         return Order.builder()
             .customerName(customerName)
             .customerEmail(customerEmail)
