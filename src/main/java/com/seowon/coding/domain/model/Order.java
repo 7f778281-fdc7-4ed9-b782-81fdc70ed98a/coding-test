@@ -1,10 +1,7 @@
 package com.seowon.coding.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,7 +10,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "orders") // "order" is a reserved keyword in SQL
-@Data
+@Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -37,6 +34,17 @@ public class Order {
     private List<OrderItem> items = new ArrayList<>();
     
     private BigDecimal totalAmount;
+
+    public static Order create(String customerName, String customerEmail, BigDecimal totalAmount) {
+        return Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .orderDate(LocalDateTime.now())
+                .status(OrderStatus.PENDING)
+                .totalAmount(totalAmount)
+                .build();
+    }
+
     
     // Business logic
     public void addItem(OrderItem item) {
@@ -56,7 +64,19 @@ public class Order {
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
-    
+
+    public void updateId(Long newId) {
+        this.id = newId;
+    }
+
+    public void updateStatus(OrderStatus newStatus) {
+        this.status = newStatus;
+    }
+
+    public void updateTotalAmount(BigDecimal newAmount) {
+        this.totalAmount = newAmount;
+    }
+
     public void markAsProcessing() {
         this.status = OrderStatus.PROCESSING;
     }

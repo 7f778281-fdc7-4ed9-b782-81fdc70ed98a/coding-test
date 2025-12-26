@@ -6,15 +6,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
 
 @Entity
-@Data
+@Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -40,7 +37,15 @@ public class Product {
     public boolean isInStock() {
         return stockQuantity > 0;
     }
-    
+
+    public void updateId(Long id) {
+        this.id = id;
+    }
+
+    public void updatePrice(BigDecimal newPrice) {
+        this.price = newPrice;
+    }
+
     public void decreaseStock(int quantity) {
         if (quantity > stockQuantity) {
             throw new IllegalArgumentException("Not enough stock available");
