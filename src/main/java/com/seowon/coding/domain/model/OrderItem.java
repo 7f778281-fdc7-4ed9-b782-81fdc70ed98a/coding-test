@@ -47,6 +47,14 @@ public class OrderItem {
         int quantity,
         BigDecimal price
     ) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + quantity);
+        }
+
+        if (product.getStockQuantity() < quantity) {
+            throw new IllegalStateException("insufficient stock for product " + product.getId());
+        }
+
         return OrderItem.builder()
             .order(order)
             .product(product)
