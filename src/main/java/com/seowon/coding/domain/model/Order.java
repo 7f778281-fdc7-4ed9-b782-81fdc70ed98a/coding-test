@@ -29,7 +29,7 @@ public class Order {
     
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
-    
+
     private LocalDateTime orderDate;
     
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -55,6 +55,13 @@ public class Order {
         this.totalAmount = items.stream()
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public void checkoutTotalAmount(BigDecimal subtotal, String couponCode) {
+        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
+        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
+
+        this.totalAmount = subtotal.add(shipping).subtract(discount);
     }
     
     public void markAsProcessing() {

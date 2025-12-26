@@ -147,13 +147,10 @@ public class OrderService {
             order.getItems().add(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(product.priceMultiply(qty)); // multiply 로직을 priceMultiply Method로 개선
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.checkoutTotalAmount(subtotal, couponCode); // shipping, discount 연산을 checkoutTotalAmount Method로 개선
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }

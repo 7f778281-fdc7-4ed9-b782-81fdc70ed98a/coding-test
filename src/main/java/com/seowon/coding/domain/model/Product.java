@@ -71,4 +71,8 @@ public class Product {
 
         this.price = newPrice;
     }
+
+    public BigDecimal priceMultiply(int qty) {
+        return this.getPrice().multiply(BigDecimal.valueOf(qty));
+    }
 }
