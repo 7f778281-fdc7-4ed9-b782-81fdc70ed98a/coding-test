@@ -34,17 +34,13 @@ public class ProductService {
     }
 
     public Product updateProduct(Long id, Product product) {
-        if (!productRepository.existsById(id)) {
-            throw new RuntimeException("Product not found with id: " + id);
-        }
+        validateExsistById(id);
         product.setId(id);
         return productRepository.save(product);
     }
 
     public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) {
-            throw new RuntimeException("Product not found with id: " + id);
-        }
+        validateExsistById(id);
         productRepository.deleteById(id);
     }
 
@@ -53,9 +49,8 @@ public class ProductService {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
         invalidateCategoryName(category);
-        productRepository.findByCategory(category);
-
-        return List.of();
+        return productRepository
+                .findByCategory(category.trim());
     }
 
     /**
@@ -85,6 +80,12 @@ public class ProductService {
     private static void invalidateCategoryName(final String category) {
         if (category == null || category.trim().isEmpty()) {
             throw new IllegalArgumentException(ErrorCode.INVALID_CATEGORY_NAME.getMessage());
+        }
+    }
+
+    private void validateExsistById(final Long id) {
+        if (!productRepository.existsById(id)) {
+            throw new RuntimeException("Product not found with id: " + id);
         }
     }
 }
