@@ -72,6 +72,15 @@ public class Order {
     public void markAsCancelled() {
         this.status = OrderStatus.CANCELLED;
     }
+
+    public void checkDiscount(String couponCode) {
+        BigDecimal shipping =
+                totalAmount.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
+        BigDecimal discount =
+                (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
+
+        this.totalAmount.add(shipping.subtract(discount));
+    }
     
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
