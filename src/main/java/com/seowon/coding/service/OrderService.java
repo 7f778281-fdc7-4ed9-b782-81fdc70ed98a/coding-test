@@ -1,6 +1,7 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
@@ -55,15 +56,29 @@ public class OrderService {
 
 
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
-        // TODO #3: 구현 항목
-        // * 주어진 고객 정보로 새 Order를 생성
-        // * 지정된 Product를 주문에 추가
-        // * order 의 상태를 PENDING 으로 변경
-        // * orderDate 를 현재시간으로 설정
-        // * order 를 저장
-        // * 각 Product 의 재고를 수정
-        // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.of(
+            customerName,
+            customerEmail,
+            OrderStatus.PENDING,
+            LocalDateTime.now(),
+            BigDecimal.ZERO
+        );
+
+        for (int i = 0; i < productIds.size(); i++) {
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow();
+
+            if (!product.isInStock()) {
+                throw new IllegalArgumentException("Not enough stock available");
+            }
+
+            int quantity = quantities.get(i);
+            product.decreaseStock(quantity);
+
+            OrderItem orderItem = OrderItem.of(order, product, quantity, product.getPrice());
+            order.addItem(orderItem);
+        }
+
+        return orderRepository.save(order);
     }
 
     /**
