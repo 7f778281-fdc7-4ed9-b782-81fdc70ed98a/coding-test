@@ -101,6 +101,11 @@ public class OrderService {
         );
 
         BigDecimal subtotal = BigDecimal.ZERO;
+
+        if (orderProducts == null || orderProducts.isEmpty()) {
+            throw new IllegalArgumentException("orderReqs invalid");
+        }
+
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();

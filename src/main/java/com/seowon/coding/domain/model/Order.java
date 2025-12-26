@@ -61,10 +61,6 @@ public class Order {
             throw new IllegalArgumentException("customer info required");
         }
 
-        if (orderProducts == null || orderProducts.isEmpty()) {
-            throw new IllegalArgumentException("orderReqs invalid");
-        }
-
         return Order.builder()
             .customerName(customerName)
             .customerEmail(customerEmail)
