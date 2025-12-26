@@ -64,7 +64,32 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .build();
+
+        for (int idx = 0; idx < productIds.size(); idx++) {
+            Product product = productRepository.getReferenceById(productIds.get(idx));
+            if (!product.isInStock()) {
+                return null;
+            }
+            product.decreaseStock(1);
+            productRepository.save(product);
+
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(quantities.get(idx))
+                    .build();
+
+            order.addItem(orderItem);
+        }
+        orderRepository.save(order);
+
+        return order;
     }
 
     /**
