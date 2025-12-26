@@ -53,16 +53,16 @@ public class Order {
     public static Order of(
         String customerName,
         String customerEmail,
-        OrderStatus status,
+        OrderStatus orderStatus,
         LocalDateTime orderDate,
         BigDecimal totalAmount
     ) {
         return Order.builder()
             .customerName(customerName)
             .customerEmail(customerEmail)
-            .status(OrderStatus.PENDING)
-            .orderDate(LocalDateTime.now())
-            .totalAmount(BigDecimal.ZERO)
+            .status(orderStatus)
+            .orderDate(orderDate)
+            .totalAmount(totalAmount)
             .build();
     }
 
