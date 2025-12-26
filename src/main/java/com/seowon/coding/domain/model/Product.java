@@ -54,4 +54,22 @@ public class Product {
         }
         stockQuantity += quantity;
     }
+
+    public void validationQuantity(int qty) {
+        if (!isInStock()) {
+            throw new IllegalArgumentException("quantity must be positive: " + qty);
+        }
+
+        if (stockQuantity < qty) {
+            throw new IllegalStateException("insufficient stock for product " + id);
+        }
+    }
+
+    public void calIncludeTax(double percentage) {
+        this.price = price.multiply(new BigDecimal(percentage));
+    }
+
+    public void absPrice() {
+        this.price = price.abs();
+    }
 }
