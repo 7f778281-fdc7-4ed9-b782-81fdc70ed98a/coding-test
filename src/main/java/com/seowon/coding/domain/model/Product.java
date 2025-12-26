@@ -19,39 +19,46 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Product {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @NotBlank(message = "Product name is required")
     private String name;
-    
+
     private String description;
-    
+
     @Positive(message = "Price must be positive")
     private BigDecimal price;
-    
+
     private int stockQuantity;
-    
+
     private String category;
-    
+
     // Business logic
     public boolean isInStock() {
         return stockQuantity > 0;
     }
-    
+
     public void decreaseStock(int quantity) {
         if (quantity > stockQuantity) {
             throw new IllegalArgumentException("Not enough stock available");
         }
+        if (this.stockQuantity <= 0) {
+            throw new IllegalArgumentException("재고 부족");
+        }
         stockQuantity -= quantity;
     }
-    
+
     public void increaseStock(int quantity) {
+        validatePositiveQuantity(quantity);
+        stockQuantity += quantity;
+    }
+
+    private static void validatePositiveQuantity(final int quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
-        stockQuantity += quantity;
     }
 }
