@@ -66,5 +66,15 @@ public class OrderController {
      *   ]
      * }
      */
-    //
+    @PostMapping
+    public ResponseEntity<Void> order(@RequestBody OrderCreateRequest request) {
+        List<Long> ids = request.products().stream()
+                .map(ProductDto::productId)
+                .toList();
+        List<Integer> quantities = request.products().stream()
+                .map(ProductDto::quantity)
+                .toList();
+        orderService.placeOrder(request.customerName(), request.customerEmail(), ids, quantities);
+        return ResponseEntity.created(URI.create("/api/orders")).build();
+    }
 }
