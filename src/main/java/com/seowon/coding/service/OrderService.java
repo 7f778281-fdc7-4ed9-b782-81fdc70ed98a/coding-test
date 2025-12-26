@@ -170,6 +170,11 @@ public class OrderService {
 
         int processed = 0;
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
+            /**
+             * catch에서 별도의 처리가 없다는것은 로그와 같은 기록이 전혀 남지 않고 아무 문제가 없었다는 듯이 넘어가는 처리가 되므로
+             * 명확한 이유가 있는게 아니라면 지양해야 한다고 생각합니다.
+             * 최소한 로그는 남겨야 하며 지금과 같이 @Transactional 로 트랜잭션 관리를 하고 있는 상황에서는 예외를 던져 롤백을 처리해야 한다고 생각합니다.
+             */
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
@@ -178,11 +183,22 @@ public class OrderService {
             } catch (Exception e) {
             }
         }
+        /**
+         * 이미 메서드 시작 부분에서 ProcessingStatus를 조회해 영속화된 상태인데 초기화 되지 않았음에도 동일한 데이터의 추가 조회는 불필요하다고 생각합니다.
+         * 재 조회를 하지 않더라도 기존 ps 객체를 통해 Complete로 전환하는게 가능하기 때문입니다.
+         */
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);
     }
 
+    /**
+        REQUIRES_NEW 로 정의하게 됨으로써
+        접근시마다 새로운 트랜잭션을 갖게 되어 기존 트랜잭션과는 독립된 트랜잭션에서 동작하게 됩니다.
+        중간 진행률을 저장하기 위한 목적이라는 점에서 REQUIRES_NEW 가 적합한 선택이지만
+        상위 메서드인 bulkShipOrdersParent 메서드에서 예외 발생시 같이 롤백이 되지 않기 때문에
+        데이터 정합성 측면에서의 이슈를 잘 고려해야 한다고 생각합니다.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateProgressRequiresNew(String jobId, int processed, int total) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
