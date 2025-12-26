@@ -81,11 +81,6 @@ public class OrderService {
         return orderRepository.save(order);
     }
 
-    /**
-     * TODO #4 (리펙토링): Service 에 몰린 도메인 로직을 도메인 객체 안으로 이동
-     * - Repository 조회는 도메인 객체 밖에서 해결하여 의존 차단 합니다.
-     * - #3 에서 추가한 도메인 메소드가 있을 경우 사용해도 됩니다.
-     */
     public Order checkoutOrder(
         String customerName,
         String customerEmail,
