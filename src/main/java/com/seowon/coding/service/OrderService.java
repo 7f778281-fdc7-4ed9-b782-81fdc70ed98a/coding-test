@@ -88,11 +88,6 @@ public class OrderService {
         return order;
     }
 
-    /**
-     * TODO #4 (리펙토링): Service 에 몰린 도메인 로직을 도메인 객체 안으로 이동
-     * - Repository 조회는 도메인 객체 밖에서 해결하여 의존 차단 합니다.
-     * - #3 에서 추가한 도메인 메소드가 있을 경우 사용해도 됩니다.
-     */
     public Order checkoutOrder(String customerName,
                                String customerEmail,
                                List<OrderProduct> orderProducts,
@@ -114,19 +109,13 @@ public class OrderService {
                 .build();
 
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
             Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+            product.checkStockQuantity(qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -137,13 +126,9 @@ public class OrderService {
             order.getItems().add(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.checkDiscount(couponCode);
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
