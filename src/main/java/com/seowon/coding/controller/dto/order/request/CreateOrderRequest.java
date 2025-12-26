@@ -1,5 +1,18 @@
 package com.seowon.coding.controller.dto.order.request;
 
-public record CreateOrderRequest() {
+import java.util.List;
+
+public record CreateOrderRequest(
+    String customerName,
+    String customerEmail,
+    List<ProductRequest> products
+) {
+
+    public record ProductRequest(
+        Long productId,
+        Integer quantity
+    ) {
+
+    }
 
 }
