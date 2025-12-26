@@ -54,7 +54,7 @@ public class OrderService {
     }
 
 
-
+    @Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +64,38 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now()) // 또는 @CreationTimestamp 를 orderDate 필드에 정의
+                .build();
+
+        List<Product> productList = productRepository.findAllById(productIds);
+
+        for(int i = 0; i < productList.size(); i++) {
+            Product product = productList.get(i);
+            int quantity = quantities.get(i);
+
+            OrderItem item = OrderItem.builder()
+                    .product(product)
+                    .quantity(quantity)
+                    .price(product.getPrice())
+                    .build();
+
+            order.addItem(item);
+
+            // order 생성 이후 다시 반복하지 않고 한번에 decrease 처리
+            product.decreaseStock(quantity);
+        }
+
+        // CascadeType.ALL로 인해 OrderItem 동시저장
+        // order만 저장하도록 하는 것으로 OrderItem Save 생략
+        orderRepository.save(order);
+        productRepository.saveAll(productList);
+
+        return order;
     }
 
     /**
