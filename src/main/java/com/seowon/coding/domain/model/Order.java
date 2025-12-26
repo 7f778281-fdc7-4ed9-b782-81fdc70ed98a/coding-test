@@ -36,7 +36,7 @@ public class Order {
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
     
-    private BigDecimal totalAmount;
+    private BigDecimal totalAmount; // 총 주문금액?
     
     // Business logic
     public void addItem(OrderItem item) {
@@ -51,7 +51,7 @@ public class Order {
         recalculateTotalAmount();
     }
     
-    public void recalculateTotalAmount() {
+    public void recalculateTotalAmount() { // 각 subTotal을 가져와서 더하기
         this.totalAmount = items.stream()
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

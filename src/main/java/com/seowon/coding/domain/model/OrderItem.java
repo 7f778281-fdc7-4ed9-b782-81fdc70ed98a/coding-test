@@ -32,7 +32,7 @@ public class OrderItem {
     private BigDecimal price; // Price at the time of order
     
     // Business logic
-    public BigDecimal getSubtotal() {
+    public BigDecimal getSubtotal() { // 가격 * 수량 = 총 주문금액
         return price.multiply(BigDecimal.valueOf(quantity));
     }
 }
