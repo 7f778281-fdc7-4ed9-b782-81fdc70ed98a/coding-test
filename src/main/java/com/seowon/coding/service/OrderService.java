@@ -1,9 +1,11 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
+import com.seowon.coding.domain.repository.OrderItemRepository;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
@@ -26,7 +28,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+    private final OrderItemRepository orderItemRepository;
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -64,7 +67,35 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .build();
+
+        for (int i = 0; i < productIds.size(); i++) {
+            int quantity = quantities.get(i);
+
+            // Product 재고 감소
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow();
+            product.decreaseStock(quantity);
+
+            // OrderItem 생성
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(quantity)
+                    .build();
+            orderItemRepository.save(orderItem);
+
+            // Order에 OrderItem 추가
+            order.addItem(orderItem);
+        }
+
+        // Order 저장
+        return orderRepository.save(order);
     }
 
     /**
