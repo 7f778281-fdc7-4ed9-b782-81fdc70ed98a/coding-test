@@ -1,10 +1,12 @@
 package com.seowon.coding.controller;
 
+import com.seowon.coding.controller.dto.request.OrderRequestDTO;
 import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -66,5 +68,12 @@ public class OrderController {
      *   ]
      * }
      */
-    //
+    // 이메일 유효성 검사를 위한 @Validated 추가, HTTP 코드 201 Created 설정.
+    @PostMapping
+    public ResponseEntity<Void> postOrder(@Validated @RequestBody OrderRequestDTO requestDTO) {
+        orderService.placeOrder(requestDTO.getCustomerName(), requestDTO.getCustomerEmail()
+                , requestDTO.getProductIdList(), requestDTO.getQuantityList());
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
 }
