@@ -2,6 +2,7 @@ package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.ProductRepository;
+import com.seowon.coding.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +52,7 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        //여기에다가 카테고리별 제품 조회메서드 구현?
-
+        invalidateCategoryName(category);
         productRepository.findByCategory(category);
 
         return List.of();
@@ -79,6 +79,12 @@ public class ProductService {
             BigDecimal newPrice = BigDecimal.valueOf(changed).setScale(2, RoundingMode.HALF_UP);
             p.setPrice(newPrice);
             productRepository.save(p); // 루프마다 저장 (비효율적)
+        }
+    }
+
+    private static void invalidateCategoryName(final String category) {
+        if (category == null || category.trim().isEmpty()) {
+            throw new IllegalArgumentException(ErrorCode.INVALID_CATEGORY_NAME.getMessage());
         }
     }
 }
