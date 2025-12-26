@@ -92,21 +92,13 @@ public class OrderService {
         List<OrderProduct> orderProducts,
         String couponCode
     ) {
-        if (customerName == null || customerEmail == null) {
-            throw new IllegalArgumentException("customer info required");
-        }
-        if (orderProducts == null || orderProducts.isEmpty()) {
-            throw new IllegalArgumentException("orderReqs invalid");
-        }
-
-        Order order = Order.builder()
-            .customerName(customerName)
-            .customerEmail(customerEmail)
-            .status(Order.OrderStatus.PENDING)
-            .orderDate(LocalDateTime.now())
-            .items(new ArrayList<>())
-            .totalAmount(BigDecimal.ZERO)
-            .build();
+        Order order = Order.of(
+            customerName,
+            customerEmail,
+            OrderStatus.PENDING,
+            LocalDateTime.now(),
+            BigDecimal.ZERO
+        );
 
         BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
@@ -115,19 +107,14 @@ public class OrderService {
 
             Product product = productRepository.findById(pid)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
 
-            OrderItem item = OrderItem.builder()
-                .order(order)
-                .product(product)
-                .quantity(qty)
-                .price(product.getPrice())
-                .build();
+            OrderItem item = OrderItem.of(
+                order,
+                product,
+                qty,
+                product.getPrice()
+            );
+
             order.getItems().add(item);
 
             product.decreaseStock(qty);
