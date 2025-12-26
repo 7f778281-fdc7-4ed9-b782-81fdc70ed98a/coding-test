@@ -130,15 +130,22 @@ public class OrderService {
     }
 
     /**
-     * TODO #5: 코드 리뷰 - 장시간 작업과 진행률 저장의 트랜잭션 분리
-     * - 시나리오: 일괄 배송 처리 중 진행률을 저장하여 다른 사용자가 조회 가능해야 함.
-     * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
-     * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
+     * 코드 리뷰:
+     *
+     * - 가독성
+     * `ps` 같은 축약 변수보다 `prcessingStatus` 같은 풀네임 변수가 코드의 길이는 길어지지만, 한 눈에 봤을 때 알아보기 쉬운 것 같습니다.
+     *
+     * - 트랜잭션
+     * updateProgressRequiresNew()에서 REQUIRES_NEW 옵션을 통해 bulkShipOrdersParent()의 트랜잭션과 별개의 트랜잭션으로 분리한 것을 확인했습니다.
+     * 그러면 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING)); 이 부분은 updateProgressRequiresNew()에서
+     * 예외가 터져서 롤백이 된다면, OrderStatus가 PROCESSING으로 그대로 유지될 것 같은데, 의도된 부분인지 확인이 필요할 것 같습니다.
+     *
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
             .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
+
         ps.markRunning(orderIds == null ? 0 : orderIds.size());
         processingStatusRepository.save(ps);
 
