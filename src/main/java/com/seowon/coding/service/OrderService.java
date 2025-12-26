@@ -1,9 +1,11 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
+import com.seowon.coding.domain.repository.OrderItemRepository;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
@@ -26,7 +28,10 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+    private final OrderItemRepository orderItemRepository;
+
+    private final OrderProgressService orderProgressService;
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -64,7 +69,36 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .build();
+
+        for (int i = 0; i < productIds.size(); i++) {
+            int quantity = quantities.get(i);
+
+            // Product 재고 감소
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow();
+            product.decreaseStock(quantity);
+
+            // OrderItem 생성
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(quantity)
+                    .price(product.getPrice())
+                    .build();
+            orderItemRepository.save(orderItem);
+
+            // Order에 OrderItem 추가
+            order.addItem(orderItem);
+        }
+
+        // Order 저장
+        return orderRepository.save(order);
     }
 
     /**
@@ -113,17 +147,14 @@ public class OrderService {
                     .quantity(qty)
                     .price(product.getPrice())
                     .build();
-            order.getItems().add(item);
+            order.addItem(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(item.getSubtotal());
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.calculateTotalAmount(subtotal, couponCode);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
@@ -133,12 +164,8 @@ public class OrderService {
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
      */
-    @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
-        ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
-                .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
-        ps.markRunning(orderIds == null ? 0 : orderIds.size());
-        processingStatusRepository.save(ps);
+        orderProgressService.markRunning(jobId, orderIds);
 
         int processed = 0;
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
@@ -146,13 +173,13 @@ public class OrderService {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
-                this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
+                orderProgressService.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
+                orderProgressService.fail(jobId);
             }
         }
-        ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
-        ps.markCompleted();
-        processingStatusRepository.save(ps);
+
+        orderProgressService.markCompleted(jobId);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -162,5 +189,4 @@ public class OrderService {
         ps.updateProgress(processed, total);
         processingStatusRepository.save(ps);
     }
-
 }

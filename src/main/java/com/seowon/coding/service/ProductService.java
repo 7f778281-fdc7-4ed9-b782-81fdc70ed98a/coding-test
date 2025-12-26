@@ -2,6 +2,7 @@ package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.ProductRepository;
+import java.math.BigInteger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +52,7 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+        return productRepository.findByCategory(category);
     }
 
     /**
@@ -61,20 +62,10 @@ public class ProductService {
         if (productIds == null || productIds.isEmpty()) {
             throw new IllegalArgumentException("empty productIds");
         }
-        // 잘못된 구현 예시: double 사용, 루프 내 개별 조회/저장, 하드코딩 세금/반올림 규칙
-        for (Long id : productIds) {
-            Product p = productRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
 
-            double base = p.getPrice() == null ? 0.0 : p.getPrice().doubleValue();
-            double changed = base + (base * (percentage / 100.0)); // 부동소수점 오류 가능
-            if (includeTax) {
-                changed = changed * 1.1; // 하드코딩 VAT 10%, 지역/카테고리별 규칙 미반영
-            }
-            // 임의 반올림: 일관되지 않은 스케일/반올림 모드
-            BigDecimal newPrice = BigDecimal.valueOf(changed).setScale(2, RoundingMode.HALF_UP);
-            p.setPrice(newPrice);
-            productRepository.save(p); // 루프마다 저장 (비효율적)
-        }
+        List<Product> products = productRepository.findAllById(productIds);
+        products.forEach(p -> p.updatePrice(percentage, includeTax));
+
+        productRepository.saveAll(products);
     }
 }
