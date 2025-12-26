@@ -64,7 +64,35 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        Order order = new Order();
+        order.setCustomerName(customerName);
+        order.setCustomerEmail(customerEmail);
+
+        List<Product> allProducts = productRepository.findAllById(productIds);
+        List<OrderItem> orderItems = new ArrayList<>();
+        OrderItem orderItem = new OrderItem();
+        for (int i = 0; i < allProducts.size(); i++) {
+            Product product = allProducts.get(i);
+            orderItem.setOrder(order);
+            orderItem.setProduct(product);
+            orderItems.add(orderItem);
+            order.addItem(orderItem);
+            product.decreaseStock(quantities.get(i));
+        }
+
+        order.setItems(orderItems);
+        order.setStatus(Order.OrderStatus.PENDING);
+        order.setOrderDate(LocalDateTime.now());
+
+        orderRepository.save(order);
+
+        return order;
+    }
+
+    private Product findById(Long pid) {
+        return productRepository.findById(pid)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
     }
 
     /**
@@ -98,14 +126,9 @@ public class OrderService {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+            Product product = findById(pid);
+
+            product.validationQuantity(qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -122,8 +145,9 @@ public class OrderService {
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.subtotalAmount(shipping, discount);
         order.setStatus(Order.OrderStatus.PROCESSING);
+
         return orderRepository.save(order);
     }
 
@@ -138,13 +162,15 @@ public class OrderService {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
                 .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
         ps.markRunning(orderIds == null ? 0 : orderIds.size());
-        processingStatusRepository.save(ps);
+
+        bulkShipOrdersSavePs(ps);
 
         int processed = 0;
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
-                orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
+                bulkShipOrdersFindOrder(orderId);
+
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
@@ -152,7 +178,19 @@ public class OrderService {
         }
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
+
+        bulkShipOrdersSavePs(ps);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void bulkShipOrdersSavePs(ProcessingStatus ps) {
         processingStatusRepository.save(ps);
+        productRepository.flush();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void bulkShipOrdersFindOrder(Long orderId) {
+        orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
