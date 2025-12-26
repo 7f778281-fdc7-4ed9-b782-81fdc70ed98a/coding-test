@@ -103,12 +103,6 @@ public class OrderService {
                                String customerEmail,
                                List<OrderProduct> orderProducts,
                                String couponCode) {
-        if (customerName == null || customerEmail == null) {
-            throw new IllegalArgumentException("customer info required");
-        }
-        if (orderProducts == null || orderProducts.isEmpty()) {
-            throw new IllegalArgumentException("orderReqs invalid");
-        }
 
         Order order = Order.builder()
                 .customerName(customerName)
@@ -118,40 +112,21 @@ public class OrderService {
                 .items(new ArrayList<>())
                 .totalAmount(BigDecimal.ZERO)
                 .build();
-
-
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
-            Long pid = req.getProductId();
-            int qty = req.getQuantity();
-
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
-
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
-
-            product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            Product product = productRepository.findById(req.getProductId()).orElseThrow();
+            order.addProduct(product, req.getQuantity());
         }
+        order.checkout(couponCode);
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateProgressRequiresNew(String jobId, int processed, int total) {
+        ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
+                .orElseGet(() -> ProcessingStatus.builder().jobId(jobId).build());
+        ps.updateProgress(processed, total);
+        processingStatusRepository.save(ps);
     }
 
     /**
@@ -186,14 +161,6 @@ public class OrderService {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
         }
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void updateProgressRequiresNew(String jobId, int processed, int total) {
-        ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
-                .orElseGet(() -> ProcessingStatus.builder().jobId(jobId).build());
-        ps.updateProgress(processed, total);
-        processingStatusRepository.save(ps);
     }
 
 }
