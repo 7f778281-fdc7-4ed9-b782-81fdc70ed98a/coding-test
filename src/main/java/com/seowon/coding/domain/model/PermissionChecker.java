@@ -1,6 +1,8 @@
 package com.seowon.coding.domain.model;
 
 
+import java.util.ArrayList;
+import java.util.stream.Stream;
 import lombok.Builder;
 
 import java.util.List;
@@ -19,6 +21,24 @@ class PermissionChecker {
             List<UserGroup> groups,
             List<Policy> policies
     ) {
+        // User user = users.stream()
+        //         .filter(u -> u.id.equals(userId))
+        //         .findAny()
+        //         .get();
+        //
+        // List<UserGroup> userGroups = groups.stream()
+        //         .filter(g -> g.id.equals(user.id))
+        //         .toList();
+        //
+        // List<Policy> userPolicies = new ArrayList<>();
+        // for (UserGroup userGroup : userGroups) {
+        //     List<String> policyIds = userGroup.policyIds;
+        //
+        //     for (String policyId : policyIds) {
+        //
+        //     }
+        // }
+
         for (User user : users) {
             if (user.id.equals(userId)) {
                 for (String groupId : user.groupIds) {
