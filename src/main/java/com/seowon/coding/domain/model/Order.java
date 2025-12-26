@@ -56,6 +56,14 @@ public class Order {
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+    public void applyShipping(BigDecimal money) {
+        this.totalAmount = totalAmount.add(money);
+    }
+
+    public void applyDiscount(BigDecimal money) {
+        this.totalAmount = totalAmount.subtract(money);
+    }
     
     public void markAsProcessing() {
         this.status = OrderStatus.PROCESSING;
@@ -76,4 +84,17 @@ public class Order {
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
     }
+
+    public static Order createOrder(String customerName, String customerEmail) {
+        return Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .orderDate(LocalDateTime.now())
+                .status(OrderStatus.PENDING)
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+    }
+
+
 }

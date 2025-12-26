@@ -54,4 +54,9 @@ public class Product {
         }
         stockQuantity += quantity;
     }
+
+    public void changePrice(double percentage, boolean includeTax) {
+        price = price.add(price.multiply(BigDecimal.valueOf(percentage).divide(BigDecimal.valueOf(100))));
+        if (includeTax) price = price.multiply(BigDecimal.valueOf(1.1));
+    }
 }

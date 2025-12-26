@@ -56,15 +56,23 @@ public class OrderService {
 
 
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
-        // TODO #3: 구현 항목
-        // * 주어진 고객 정보로 새 Order를 생성
-        // * 지정된 Product를 주문에 추가
-        // * order 의 상태를 PENDING 으로 변경
-        // * orderDate 를 현재시간으로 설정
-        // * order 를 저장
-        // * 각 Product 의 재고를 수정
-        // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.createOrder(customerName, customerEmail);
+
+        for (int i = 0; i < productIds.size(); i++) {
+            Long productId = productIds.get(i);
+
+            Product product = findProduct(productId);
+
+            int quantity = quantities.get(i);
+
+            OrderItem orderItem = OrderItem.createOrderItem(order, product, quantity);
+
+            order.addItem(orderItem);
+
+            product.decreaseStock(quantity);
+        }
+
+        return orderRepository.save(order);
     }
 
     /**
@@ -83,14 +91,7 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
+        Order order = Order.createOrder(customerName, customerEmail);
 
 
         BigDecimal subtotal = BigDecimal.ZERO;
@@ -98,8 +99,7 @@ public class OrderService {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+            Product product = findProduct(pid);
             if (qty <= 0) {
                 throw new IllegalArgumentException("quantity must be positive: " + qty);
             }
@@ -107,31 +107,35 @@ public class OrderService {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
 
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
+            OrderItem orderItem = OrderItem.createOrderItem(order, product, qty);
+            order.addItem(orderItem);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(orderItem.getSubtotal());
         }
 
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.applyShipping(shipping);
+        order.applyDiscount(discount);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
+    private Product findProduct(Long pid) {
+        Product product = productRepository.findById(pid)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+        return product;
+    }
+
     /**
-     * TODO #5: 코드 리뷰 - 장시간 작업과 진행률 저장의 트랜잭션 분리
-     * - 시나리오: 일괄 배송 처리 중 진행률을 저장하여 다른 사용자가 조회 가능해야 함.
-     * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
-     * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
+     * 코드 리뷰
+     * JPA의 Dirty Check 기능을 활용하지 않아 불필요한 저장이 반복되고 있습니다.
+     * 예외 처리 미작성이므로 작성이 필요합니다.
+     * 너무 많은 트랜잭션이 하나로 묶이고 있어 분리가 필요해보입니다.
+     * 단일 조회/수정을 bulk 조회/수정으로 수정또는 멀티 스레드를 활용하면 최적화가 가능해보입니다.
+     *
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
