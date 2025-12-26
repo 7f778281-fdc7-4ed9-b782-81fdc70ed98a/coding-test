@@ -1,5 +1,6 @@
 package com.seowon.coding.service;
 
+import com.seowon.coding.domain.enumuration.TaxVat;
 import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,20 +64,20 @@ public class ProductService {
         if (productIds == null || productIds.isEmpty()) {
             throw new IllegalArgumentException("empty productIds");
         }
-        // 잘못된 구현 예시: double 사용, 루프 내 개별 조회/저장, 하드코딩 세금/반올림 규칙
-        for (Long id : productIds) {
+        // Entity를 리스트에 담아 한번에 저장하도록 하기 위함
+        List<Product> productList = new ArrayList<>();
+
+        for(Long id : productIds) {
             Product p = productRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+            // Entity 내부 Method에서 처리하도록 개선
+            p.priceChange(percentage, includeTax, TaxVat.DEFAULT);
 
-            double base = p.getPrice() == null ? 0.0 : p.getPrice().doubleValue();
-            double changed = base + (base * (percentage / 100.0)); // 부동소수점 오류 가능
-            if (includeTax) {
-                changed = changed * 1.1; // 하드코딩 VAT 10%, 지역/카테고리별 규칙 미반영
-            }
-            // 임의 반올림: 일관되지 않은 스케일/반올림 모드
-            BigDecimal newPrice = BigDecimal.valueOf(changed).setScale(2, RoundingMode.HALF_UP);
-            p.setPrice(newPrice);
-            productRepository.save(p); // 루프마다 저장 (비효율적)
+            // 매 회차마다 저장하지 않고 한번에 저장하도록 하기 위해 리스트에 add
+            productList.add(p);
         }
+        // saveAll(list)로 여러번 반복 저장이 아닌 한번에 모든 Entity 리스트 저장
+        productRepository.saveAll(productList);
+
     }
 }
