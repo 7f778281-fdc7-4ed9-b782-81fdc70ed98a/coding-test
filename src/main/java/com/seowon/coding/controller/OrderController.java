@@ -1,13 +1,18 @@
 package com.seowon.coding.controller;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.OrderItem;
+import com.seowon.coding.service.OrderItemService;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -15,6 +20,7 @@ import java.util.List;
 public class OrderController {
     
     private final OrderService orderService;
+    private final OrderItemService orderItemService;
     
     @GetMapping
     public ResponseEntity<List<Order>> getAllOrders() {
@@ -47,10 +53,32 @@ public class OrderController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
+    @GetMapping("/{id}")
+    public HttpStatus addOrder(@RequestBody Order order,HttpStatus status) {
+
+        List<OrderItem> list = orderItemService.findAllOrderItem();
+
+        List<Long> productList = new ArrayList<>();
+        List<Integer> quantityList = new ArrayList<>();
+
+        for(int i=0; i<list.size(); i++){
+
+            productList.add(list.get(i).getId());
+            quantityList.add(list.get(i).getQuantity());
+        }
+
+        orderItemService.addItem(order , productList, quantityList);
+
+        orderService.placeOrder(order.getCustomerName(), order.getCustomerEmail(), productList, quantityList);
+
+        return HttpStatus.valueOf(status.compareTo(CREATED));
+    }
+
     /**
+     * public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
      * TODO #2: 주문을 생성하는 API 구현
-     * 구현목록:
+     * 구현목록:*
      * 1. Request DTO 를 받아서 주문 생성
      * 2. orderService.placeOrder 호출
      * 3. 주문 생성시 HTTP 201 CREATED 반환

@@ -26,7 +26,9 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+    private final OrderItemService orderItemService;
+    private final ProductService productService;
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -56,12 +58,29 @@ public class OrderService {
 
 
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
+
+        Order order = new Order();
+
+        List<OrderItem> orderItemList = orderItemService.findByProductIds(productIds);
+
+        order.setCustomerName(customerName);
+        order.setCustomerEmail(customerEmail);
+        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.setOrderDate(LocalDateTime.now());
+        order.setItems(orderItemList);
+
+        orderRepository.save(order);
+
+
+
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
         // * 지정된 Product를 주문에 추가
         // * order 의 상태를 PENDING 으로 변경
         // * orderDate 를 현재시간으로 설정
         // * order 를 저장
+
+
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
         return null;
