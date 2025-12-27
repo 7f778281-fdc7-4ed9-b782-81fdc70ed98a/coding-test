@@ -64,6 +64,21 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
+
+
+        Order order = Order.builder().orderDate(LocalDateTime.now()).customerName(customerName).customerEmail(customerEmail).status(Order.OrderStatus.PENDING).build();
+
+        for (int i=0; i < productIds.size(); i++) {
+            Product product = productRepository.getById(productIds.get(i));
+            product.decreaseStock(quantities.get(i));
+
+            productRepository.save(product);
+
+            OrderItem orderItem = OrderItem.builder().order(order).product(product).quantity(quantities.get(i)).build();
+            order.addItem(orderItem);
+        }
+
+        orderRepository.save(order);
         return null;
     }
 
