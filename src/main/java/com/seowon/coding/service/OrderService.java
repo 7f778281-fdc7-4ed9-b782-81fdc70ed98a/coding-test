@@ -4,6 +4,7 @@ import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
+import com.seowon.coding.domain.repository.OrderItemRepository;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
@@ -26,6 +27,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
+    private final OrderItemRepository orderItemRepository;
     
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -64,7 +66,43 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        // 새 Order 생성
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .orderDate(LocalDateTime.now())
+                .status(Order.OrderStatus.PENDING)
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+
+
+        // Product 재고 수정 및 OrderItem 생성
+        for (int i = 0; i < productIds.size(); i++) {
+            Long pid = productIds.get(i);
+
+            Product product = productRepository.findById(pid)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+
+            // 재고 감소
+            product.decreaseStock(quantities.get(i));
+
+            // OrderItem 생성
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(quantities.get(i))
+                    .price(product.getPrice())
+                    .build();
+
+            OrderItem savedOrderItem = orderItemRepository.save(orderItem);
+
+            // OrderItem 추가 및 totalAmount 계산
+            order.addItem(savedOrderItem);
+        }
+
+        return orderRepository.save(order);
     }
 
     /**
