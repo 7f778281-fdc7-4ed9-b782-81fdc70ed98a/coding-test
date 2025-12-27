@@ -1,42 +1,40 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
+
 
     public Order updateOrder(Long id, Order order) {
         if (!orderRepository.existsById(id)) {
@@ -45,7 +43,7 @@ public class OrderService {
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
@@ -54,8 +52,8 @@ public class OrderService {
     }
 
 
-
-    public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
+    public Order placeOrder(String customerName, String customerEmail, List<Long> productIds,
+                            List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
         // * 지정된 Product를 주문에 추가
@@ -64,7 +62,22 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        if (customerName == null || customerEmail == null) {
+            throw new IllegalArgumentException("customer info required");
+        }
+        if (productIds == null || productIds.isEmpty()) {
+            throw new IllegalArgumentException("orderReqs invalid");
+        }
+
+        Order order = Order.of(customerName, customerEmail);
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+        subtotal = getCreatedSubtotal(productIds, quantities, order, subtotal);
+
+        order.setTotalAmount(subtotal);
+        order.setStatus(OrderStatus.PENDING);
+        return orderRepository.save(order);
     }
 
     /**
@@ -83,49 +96,16 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
+        Order order = Order.of(customerName, customerEmail);
 
         BigDecimal subtotal = BigDecimal.ZERO;
-        for (OrderProduct req : orderProducts) {
-            Long pid = req.getProductId();
-            int qty = req.getQuantity();
+        subtotal = getSubtotal(orderProducts, order, subtotal);
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
-
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
-
-            product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
-        }
-
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.setTotalAmount(subtotal.add(getShipping(subtotal)).subtract(getSale(couponCode)));
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
+
 
     /**
      * TODO #5: 코드 리뷰 - 장시간 작업과 진행률 저장의 트랜잭션 분리
@@ -161,6 +141,65 @@ public class OrderService {
                 .orElseGet(() -> ProcessingStatus.builder().jobId(jobId).build());
         ps.updateProgress(processed, total);
         processingStatusRepository.save(ps);
+    }
+
+    private BigDecimal getCreatedSubtotal(List<Long> productIds, List<Integer> quantities, Order order,
+                                          BigDecimal subtotal) {
+        for (int i = 0; i < productIds.size(); i++) {
+            Long pid = productIds.get(i);
+            int qty = quantities.get(i);
+
+            Product product = getProduct(pid);
+            if (qty <= 0) {
+                throw new IllegalArgumentException("quantity must be positive: " + qty);
+            }
+            if (product.getStockQuantity() < qty) {
+                throw new IllegalStateException("insufficient stock for product " + pid);
+            }
+
+            OrderItem item = OrderItem.of(order, product, qty);
+            order.getItems().add(item);
+
+            product.decreaseStock(qty);
+            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+        }
+        return subtotal;
+    }
+
+    private BigDecimal getSubtotal(List<OrderProduct> orderProducts, Order order, BigDecimal subtotal) {
+        for (OrderProduct req : orderProducts) {
+            Long pid = req.getProductId();
+            int qty = req.getQuantity();
+
+            Product product = getProduct(pid);
+            if (qty <= 0) {
+                throw new IllegalArgumentException("quantity must be positive: " + qty);
+            }
+            if (product.getStockQuantity() < qty) {
+                throw new IllegalStateException("insufficient stock for product " + pid);
+            }
+
+            OrderItem item = OrderItem.of(order, product, qty);
+            order.getItems().add(item);
+
+            product.decreaseStock(qty);
+            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+        }
+        return subtotal;
+    }
+
+    private BigDecimal getSale(String couponCode) {
+        return (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
+    }
+
+    private BigDecimal getShipping(BigDecimal subtotal) {
+        return subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
+    }
+
+    private Product getProduct(Long pid) {
+        Product product = productRepository.findById(pid)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+        return product;
     }
 
 }
