@@ -57,13 +57,55 @@ public class OrderService {
 
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
-        // * 주어진 고객 정보로 새 Order를 생성
-        // * 지정된 Product를 주문에 추가
-        // * order 의 상태를 PENDING 으로 변경
-        // * orderDate 를 현재시간으로 설정
-        // * order 를 저장
-        // * 각 Product 의 재고를 수정
-        // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
+    	Order order = new Order();
+    	// * 주어진 고객 정보로 새 Order를 생성
+    	order.setCustomerName(customerName);
+    	order.setCustomerEmail(customerEmail);
+    	
+    	int i = 0;
+    	// * 지정된 Product를 주문에 추가
+    	for(Long pid : productIds) {
+    		//OrderItem 생성
+    		Product product = productRepository.findById(pid)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+            OrderItem oi = new OrderItem();
+            oi.setProduct(product);
+            oi.setQuantities(quantities[i]);
+            // 해당 상품의 원가로 배정됐습니다. 
+            // placeOrder의 POST 당시 구매가로 가져오기 위해서 다른 ARG가 더 필요합니다.
+            oi.setPrice(product.getPrice());
+            i++;
+            
+            //OrderItem 추가
+            order.addItem(oi);
+    	}
+    	
+    	// * order 의 상태를 PENDING 으로 변경
+    	order.setStatus(OrderStatus.PENDING);
+    	
+    	// * orderDate 를 현재시간으로 설정
+    	order.setDate(LocalDateTime.now());
+    	
+    	// * 각 Product 의 재고를 수정
+    	i = 0;
+    	for(Long pid : productIds) {
+    		Product product = productRepository.findById(pid)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+//    		if(product.getQuantity() > quantities[i]) {
+//    			product.setQuantity(product.getQuantity() - quantities[i]);
+//    		} else {
+//    			System.out.println("재고가 부족합니다.");
+//    		}
+    		product.decreaseStock(quantities[i]);
+    		
+            i++;
+    	}
+    	
+    	// * order 를 저장
+    	orderRepository.save(order);
+    	
+    	// * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
+    	
         return null;
     }
 
@@ -83,14 +125,16 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
+//        Order order = Order.builder()
+//                .customerName(customerName)
+//                .customerEmail(customerEmail)
+//                .status(Order.OrderStatus.PENDING)
+//                .orderDate(LocalDateTime.now())
+//                .items(new ArrayList<>())
+//                .totalAmount(BigDecimal.ZERO)
+//                .build();
+        
+        Order order = Order.makeOrder(customerName, customerEmail, new ArrayList<>())
 
 
         BigDecimal subtotal = BigDecimal.ZERO;
@@ -107,12 +151,15 @@ public class OrderService {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
 
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
+//            OrderItem item = OrderItem.builder()
+//                    .order(order)
+//                    .product(product)
+//                    .quantity(qty)
+//                    .price(product.getPrice())
+//                    .build();
+            
+            OrderItem item = OrderItem.makeOrderItem(order, product, qty);
+            
             order.getItems().add(item);
 
             product.decreaseStock(qty);

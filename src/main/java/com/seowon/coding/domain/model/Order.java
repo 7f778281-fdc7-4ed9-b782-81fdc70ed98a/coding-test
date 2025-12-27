@@ -1,5 +1,9 @@
 package com.seowon.coding.domain.model;
 
+import com.seowon.coding.domain.model.ProcessingStatus;
+import com.seowon.coding.domain.model.OrderItem;
+import com.seowon.coding.domain.model.ProcessingStatus;
+import com.seowon.coding.domain.model.Product;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -75,5 +79,18 @@ public class Order {
     
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+    }
+    
+    public static Order makeOrder(String customerName,
+            String customerEmail,
+            List<OrderProduct> orderProducts) {
+    	return Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
     }
 }
