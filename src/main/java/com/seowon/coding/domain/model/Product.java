@@ -54,4 +54,14 @@ public class Product {
         }
         stockQuantity += quantity;
     }
+
+	public void checkStock(int qty) {
+		if(qty<=0) {
+			throw new IllegalArgumentException("quantity must be positive: " + qty);
+		}
+		if(stockQuantity < qty) {
+			throw new IllegalStateException("insufficient stock for product " + id);
+		}
+	}
+
 }

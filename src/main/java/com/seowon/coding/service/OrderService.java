@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -54,9 +56,8 @@ public class OrderService {
     }
 
 
-
+	@Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
-        // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
         // * 지정된 Product를 주문에 추가
         // * order 의 상태를 PENDING 으로 변경
@@ -64,7 +65,34 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+		Order order = Order.create(customerName,customerEmail);
+
+		Map<Long, Integer> map = new HashMap<>();
+		for (int i = 0; i < productIds.size(); i++) {
+			map.put(productIds.get(i), quantities.get(i));
+		}
+
+		List<Product> products = productIds.stream()
+			.map(id -> {
+				Optional<Product> product = productRepository.findById(id);
+				if(product.isEmpty()) {
+					throw new IllegalArgumentException("Product not found with id: " + id);
+				}
+				return product.get();
+				})
+			.toList();
+
+		List<OrderItem> orderItems = products.stream()
+			.map(p -> OrderItem.create(order, p, map.get(p.getId()), p.getPrice()))
+			.toList();
+
+		products.forEach(p -> p.decreaseStock(map.get(p.getId())));
+
+		orderItems.forEach(order::addItem);
+
+		productRepository.saveAll(products);
+
+		return orderRepository.save(order);
     }
 
     /**
@@ -83,15 +111,7 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
+		Order order = Order.create(customerName, customerEmail);
 
         BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
@@ -100,30 +120,18 @@ public class OrderService {
 
             Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
-
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
-
+			product.checkStock(qty);
+			OrderItem item = OrderItem.create(order, product, qty, product.getPrice());
+			order.addItem(item);
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(item.getSubtotal());
         }
 
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
         order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+		order.markAsProcessing();
         return orderRepository.save(order);
     }
 
