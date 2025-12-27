@@ -1,12 +1,15 @@
 package com.seowon.coding.controller;
 
+import com.seowon.coding.controller.dto.OrderCreateRequest;
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.service.OrderProduct;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -67,4 +70,23 @@ public class OrderController {
      * }
      */
     //
+    @PostMapping
+    public ResponseEntity<Order> createOrder(@RequestBody OrderCreateRequest request) {
+        List<OrderProduct> products = request.products();
+
+        List<Long> productIds = new ArrayList<>();
+        List<Integer> quantities = new ArrayList<>();
+
+        for (OrderProduct req : products) {
+            productIds.add(req.getProductId());
+            quantities.add(req.getQuantity());
+        }
+
+        try {
+            Order createdOrder = orderService.placeOrder(request.customerName(), request.customerEmail(), productIds, quantities);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdOrder);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

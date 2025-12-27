@@ -4,6 +4,7 @@ import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
+import com.seowon.coding.domain.repository.OrderItemRepository;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
@@ -26,6 +27,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
+    private final OrderItemRepository orderItemRepository;
     
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -64,7 +66,43 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        // 새 Order 생성
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .orderDate(LocalDateTime.now())
+                .status(Order.OrderStatus.PENDING)
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+
+
+        // Product 재고 수정 및 OrderItem 생성
+        for (int i = 0; i < productIds.size(); i++) {
+            Long pid = productIds.get(i);
+
+            Product product = productRepository.findById(pid)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+
+            // 재고 감소
+            product.decreaseStock(quantities.get(i));
+
+            // OrderItem 생성
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(quantities.get(i))
+                    .price(product.getPrice())
+                    .build();
+
+            OrderItem savedOrderItem = orderItemRepository.save(orderItem);
+
+            // OrderItem 추가 및 totalAmount 계산
+            order.addItem(savedOrderItem);
+        }
+
+        return orderRepository.save(order);
     }
 
     /**
@@ -93,19 +131,14 @@ public class OrderService {
                 .build();
 
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
             Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+
+            product.decreaseStock(qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -113,16 +146,11 @@ public class OrderService {
                     .quantity(qty)
                     .price(product.getPrice())
                     .build();
-            order.getItems().add(item);
 
-            product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            order.addItem(item);
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.setTotalAmountWithShippingAndDiscount(couponCode);
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
@@ -133,13 +161,34 @@ public class OrderService {
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
      */
+
+    /**
+     * 1. 비동기 이벤트 처리로 분리
+     *    - Job을 생성하고 실제 Job 수행은 비동기 이벤트로 백그라운드 처리
+     *    - Job 생성 후 202 Accepted 응답 반환
+     *
+     * 2. jobId를 통해 작업 진행률 조회
+     *    - 조회 시점 업데이트 된 작업 상태 조회
+     *
+     * 3. Job 완료 시 완료 응답 발송
+     *
+     * Job 생성(수락)과 실제 Job(작업)의 트랜잭션 분리로
+     *  - Job 생성(수락) 실패 시 -> 바로 롤백 (Job 시작 안 함)
+     *  - Job 생성(수락) 성공 후 Job(작업) 수행 중 실패 -> 작업 롤백 혹은 실패 처리
+     *
+     *  작업과 요청 수락의 분리로 가독성 향상
+     *  - 요청 수락: Job 생성 후 202 반환
+     *  - 작업: 실제 작업 수행
+     */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
+        // Job 생성
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
                 .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
         ps.markRunning(orderIds == null ? 0 : orderIds.size());
         processingStatusRepository.save(ps);
 
+        // 비동기 이벤트 처리 트랜잭션 분리
         int processed = 0;
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
@@ -153,6 +202,9 @@ public class OrderService {
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);
+        // 비동기 이벤트 처리 트랜잭션 분리
+
+        // 다른 사용자 조회 시 processingStatusRepository에서 jobId를 통해 조회
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

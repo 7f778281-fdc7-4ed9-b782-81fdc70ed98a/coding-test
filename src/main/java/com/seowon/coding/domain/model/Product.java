@@ -42,9 +42,14 @@ public class Product {
     }
     
     public void decreaseStock(int quantity) {
-        if (quantity > stockQuantity) {
-            throw new IllegalArgumentException("Not enough stock available");
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + quantity);
         }
+
+        if (stockQuantity < quantity) {
+            throw new IllegalStateException("insufficient stock for product " + id);
+        }
+
         stockQuantity -= quantity;
     }
     
@@ -53,5 +58,16 @@ public class Product {
             throw new IllegalArgumentException("Quantity must be positive");
         }
         stockQuantity += quantity;
+    }
+
+    public void changePriceBulk(Double tax, double percentage) {
+        float base = price == null ? 0.0f : price.floatValue();
+        float changed = base + (base * ((float) percentage / 100.0f));
+
+        if (tax != null) {
+            changed *= tax;
+        }
+
+        price = BigDecimal.valueOf(Math.round(changed));
     }
 }
