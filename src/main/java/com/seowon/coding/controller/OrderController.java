@@ -66,5 +66,13 @@ public class OrderController {
      *   ]
      * }
      */
-    //
+    @PostMapping("/orders")
+    public ResponseEntity<Order> createOrder(@RequestBody OrderReq orderReq){
+        try {
+            Order createOrder = orderService.placeOrder(orderReq.getCustomerName(), orderReq.getCustomerEmail(), orderReq.getProductIds(), orderReq.getQuantoties());
+            return ResponseEntity.status(HttpStatus.CREATED).body(createOrder);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

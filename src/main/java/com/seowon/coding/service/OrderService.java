@@ -58,13 +58,30 @@ public class OrderService {
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
-        // * 지정된 Product를 주문에 추가
-        // * order 의 상태를 PENDING 으로 변경
+        Order order = new Order();
+        order.setCustomerName(customerName);
+        order.setCustomerEmail(customerEmail);
+
         // * orderDate 를 현재시간으로 설정
+        order.setOrderDate(LocalDateTime.now());
+
+        // * order 의 상태를 PENDING 으로 변경
+        order.setStatus(Order.OrderStatus.PENDING);
+
+        // * 지정된 Product를 주문에 추가
+        for(int i = 0; i < productIds.size(); i++){
+            Long productId = productIds.get(i);
+            Integer quantity = quantities.get(i);
+
+            Product product = productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
+
+            // * 각 Product 의 재고를 수정
+            product.setStockQuantity(quantity);
+        }
+
         // * order 를 저장
-        // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        return orderRepository.save(order);
     }
 
     /**
