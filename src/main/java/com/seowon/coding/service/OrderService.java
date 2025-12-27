@@ -8,24 +8,23 @@ import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
+    private final ProgressService progressService;
 
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
@@ -118,45 +117,74 @@ public class OrderService {
      */
 
     /**
-     * 1. ProcessingStatus의 한 작업에 대한 객체 생성 코드가 너무 많은 것 같습니다.
-     * 객체를 단순하게 찾는 것은 좋아보이나 같은 작업 Id에 대해서 ProcessingStatus을 생성한 코드가 너무 많아
-     * 한 작업 Id에 대해서 ProcessingStatus가 많아져 데이터 정합성에 문제가 생길 것 같습니다.
-     *
-     * 2. 매번 ps를 저장하기 보다는 JPA의 더티 체킹을 이용하면 좋을 것 같습니다.
-     *
-     * 3. 트랜잭션을 분리함으로써 한 쪽의 트랜잭션이 롤백됬을 때, 다른 트랜잭션은 롤백되지 않고 그대로 반영되어
-     * 데이터의 정합성에 불일치가 발생할 것 같습니다. 이에 대해 catch문에 정합성을 맞출 보상 예외 처리를 해야 할 것 같습니다.
-     *
-     * 4. 외부 시스템 연동, 대용량 계산을 해야하는 로직같은 경우에는 비동기 처리도 고려해볼만 할 것 같습니다.
+     * 개선된 일괄 배송 처리 메서드
+     * 
+     * 개선 사항:
+     * 1. ProcessingStatus 중복 생성 방지 - 초기에 한 번만 생성 후 재사용
+     * 2. JPA 더티 체킹 활용 - @Transactional 내에서 명시적 save() 제거
+     * 3. Self-invocation 해결 - ProgressService로 분리하여 REQUIRES_NEW 정상 작동
+     * 4. 예외 처리 개선 - 로깅 추가 및 실패 시 보상 트랜잭션으로 상태 업데이트
+     * 5. 데이터 정합성 보장 - 실패 시 ProcessingStatus를 FAILED로 마킹
+     * 6. 가독성 개선 - null 체크 및 의미있는 변수명 사용
+     * 
+     * 추가 개선 고려사항:
+     * - @Async + CompletableFuture로 비동기 처리
+     * - 메시지 큐(Kafka/RabbitMQ) 활용하여 이벤트 기반 처리
+     * - 재시도 로직 추가 (Spring Retry)
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
+        // 입력 검증
+        if (orderIds == null || orderIds.isEmpty()) {
+            log.warn("bulkShipOrders called with empty orderIds for jobId: {}", jobId);
+            throw new IllegalArgumentException("orderIds is empty");
+        }
+
+        // ProcessingStatus 초기화 (한 번만 생성)
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
-                .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
-        ps.markRunning(orderIds == null ? 0 : orderIds.size());
-        processingStatusRepository.save(ps);
+                .orElseGet(() -> {
+                    ProcessingStatus newPs = ProcessingStatus.builder()
+                            .jobId(jobId)
+                            .build();
+                    return processingStatusRepository.save(newPs);
+                });
+        
+        ps.markRunning(orderIds.size());
+        // 더티 체킹으로 자동 저장 (명시적 save() 불필요)
 
         int processed = 0;
-        for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
+        int failed = 0;
+        
+        for (Long orderId : orderIds) {
             try {
-                // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
-                orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
-                // 중간 진행률 저장
-                this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
+                // 오래 걸리는 작업 시뮬레이션 (예: 외부 배송 시스템 연동, 대용량 계산 등)
+                Order order = orderRepository.findById(orderId)
+                        .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+                
+                order.markAsShipped();
+                // 더티 체킹으로 자동 저장
+                
+                processed++;
+                
+                // 별도 서비스로 진행률 업데이트 (REQUIRES_NEW 트랜잭션)
+                // 부모 트랜잭션 실패 시에도 진행률은 커밋되어 사용자에게 표시됨
+                progressService.updateProgress(jobId, processed, orderIds.size());
+                
             } catch (Exception e) {
+                failed++;
+                log.error("Failed to process order {} in job {}: {}", orderId, jobId, e.getMessage(), e);
             }
         }
-        ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
-        ps.markCompleted();
-        processingStatusRepository.save(ps);
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void updateProgressRequiresNew(String jobId, int processed, int total) {
-        ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
-                .orElseGet(() -> ProcessingStatus.builder().jobId(jobId).build());
-        ps.updateProgress(processed, total);
-        processingStatusRepository.save(ps);
+        
+        // 최종 상태 업데이트
+        if (failed == 0) {
+            ps.markCompleted();
+            log.info("Bulk ship completed successfully. JobId: {}, Processed: {}", jobId, processed);
+        } else {
+            ps.markFailed();
+            log.warn("Bulk ship completed with errors. JobId: {}, Processed: {}, Failed: {}", 
+                    jobId, processed, failed);
+        }
     }
 
 }
