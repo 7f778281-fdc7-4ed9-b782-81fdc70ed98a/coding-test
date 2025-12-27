@@ -64,7 +64,42 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        if (customerName == null || customerEmail == null) {
+            throw new IllegalArgumentException("customer info required");
+        }
+        if (productIds == null || quantities == null ) {
+            throw new IllegalArgumentException("productIds/quantities is empty");
+        }
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .items(new ArrayList<>())
+                .totalAmount(BigDecimal.ZERO)
+                .build();
+        for(int i = 0; i < productIds.size(); i++) {
+            Long pid = productIds.get(i);
+            int qty = quantities.get(i);
+
+            if(pid == null) throw new IllegalArgumentException("product is null at index + [" + i+"]");
+            if(qty <= 0) throw new IllegalArgumentException("quantities must be positive " + qty);
+
+            Product product = productRepository.findById(pid).orElseThrow(() -> new IllegalArgumentException("product not found " + pid));
+            if(product.getStockQuantity() < qty) {
+                throw new IllegalArgumentException("product stock more than quantities");
+            }
+            OrderItem item = OrderItem.builder()
+                .order(order)
+                .product(product)
+                .quantity(qty)
+                .price(product.getPrice())
+                .build();
+            order.addItem(item); 
+            product.decreaseStock(qty);
+            } 
+        return orderRepository.save(order);
     }
 
     /**
@@ -83,48 +118,16 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
-
-        BigDecimal subtotal = BigDecimal.ZERO;
-        for (OrderProduct req : orderProducts) {
+        Order order = Order.createPending(customerName, customerEmail);
+        for(OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
-
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
-
-            product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            Product product = productRepository.findById(pid).orElseThrow(() -> new IllegalArgumentException("product is null at index + [" + pid+"]"));
+            order.addProduct(product, qty);
         }
-
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
-        return orderRepository.save(order);
+            order.finalcheckout(couponCode);
+            return orderRepository.save(order);
     }
 
     /**
