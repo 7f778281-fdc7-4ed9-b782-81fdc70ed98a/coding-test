@@ -7,7 +7,9 @@ import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
+import com.seowon.coding.util.ListFun;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +66,33 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .items(new ArrayList<>())
+                .build();
+
+        List<Pair<Long, Integer>> zip = ListFun.zip(productIds, quantities);
+
+        order.setStatus(Order.OrderStatus.PENDING);
+        order.setOrderDate(LocalDateTime.now());
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        for(Pair<Long, Integer> p: zip) {
+            Product product = productRepository.findById(p.getFirst()).orElseThrow("cannot find product");
+            product.decreaseStock(p.getSecond());   // 수량 감소
+
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .price(product.getPrice())
+                    .quantity(p.getSecond())
+                    .build();
+            orderItems.add(orderItem);
+        }
+
+        order.setItems(orderItems);
+
+        return orderRepository.save(order);
     }
 
     /**
