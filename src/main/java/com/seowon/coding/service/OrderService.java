@@ -83,6 +83,7 @@ public class OrderService {
                             .build();
             orderItem.setPrice(product.getPrice());
             order.addItem(orderItem);
+            order.setStatus(Order.OrderStatus.PENDING);
             product.decreaseStock(quantities.get(i));
         }
         return orderRepository.save(order);
