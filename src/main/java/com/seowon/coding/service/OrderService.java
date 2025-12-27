@@ -16,27 +16,28 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
+
 
     public Order updateOrder(Long id, Order order) {
         if (!orderRepository.existsById(id)) {
@@ -45,14 +46,13 @@ public class OrderService {
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
         }
         orderRepository.deleteById(id);
     }
-
 
 
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
@@ -98,14 +98,7 @@ public class OrderService {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+            Product product = findByPid(pid, qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -125,6 +118,18 @@ public class OrderService {
         order.setTotalAmount(subtotal.add(shipping).subtract(discount));
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
+    }
+
+    private Product findByPid(Long pid, int qty) {
+        Product product = productRepository.findById(pid)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+        if (qty <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + qty);
+        }
+        if (product.getStockQuantity() < qty) {
+            throw new IllegalStateException("insufficient stock for product " + pid);
+        }
+        return product;
     }
 
     /**
