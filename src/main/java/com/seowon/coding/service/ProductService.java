@@ -17,7 +17,8 @@ import java.util.Optional;
 public class ProductService {
     
     private final ProductRepository productRepository;
-    
+    private final Product product;
+
     @Transactional(readOnly = true)
     public List<Product> getAllProducts() {
         return productRepository.findAll();
@@ -51,7 +52,8 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+        List<Product> products = productRepository.findByCategory(category);
+        return products;
     }
 
     /**
