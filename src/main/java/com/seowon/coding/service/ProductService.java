@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,7 +52,7 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+        return productRepository.findProductsByCategory(category);
     }
 
     /**
