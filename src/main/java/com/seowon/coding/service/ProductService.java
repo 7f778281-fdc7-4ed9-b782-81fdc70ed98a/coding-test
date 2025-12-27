@@ -1,7 +1,9 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Product;
+import com.seowon.coding.domain.model.Tax;
 import com.seowon.coding.domain.repository.ProductRepository;
+import com.seowon.coding.domain.repository.TaxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +18,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class ProductService {
-    
+    private final TaxRepository taxRepository;
     private final ProductRepository productRepository;
     
     @Transactional(readOnly = true)
@@ -58,24 +60,31 @@ public class ProductService {
     /**
      * TODO #6 (리펙토링): 대량 가격 변경 로직을 도메인 객체 안으로 리팩토링하세요.
      */
-    public void applyBulkPriceChange(List<Long> productIds, double percentage, boolean includeTax) {
+    public void applyBulkPriceChange(List<Long> productIds, String location) {
         if (productIds == null || productIds.isEmpty()) {
             throw new IllegalArgumentException("empty productIds");
         }
         // 잘못된 구현 예시: double 사용, 루프 내 개별 조회/저장, 하드코딩 세금/반올림 규칙
+        List<Product> products = new ArrayList<>();
+
         for (Long id : productIds) {
             Product p = productRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
 
-            double base = p.getPrice() == null ? 0.0 : p.getPrice().doubleValue();
-            double changed = base + (base * (percentage / 100.0)); // 부동소수점 오류 가능
-            if (includeTax) {
-                changed = changed * 1.1; // 하드코딩 VAT 10%, 지역/카테고리별 규칙 미반영
+            Tax tax = taxRepository.getTaxByProduct(id, location);
+
+            long bb = p.getPrice() == null ? 0 : p.getPrice().longValue();
+            long changed =  bb + (bb * tax.getPercent() / 100);
+            if (tax.getPercent() != 0) {    // 세금을 반영하는 경우
+                changed = changed * tax.getPercent() / 100;
             }
             // 임의 반올림: 일관되지 않은 스케일/반올림 모드
             BigDecimal newPrice = BigDecimal.valueOf(changed).setScale(2, RoundingMode.HALF_UP);
             p.setPrice(newPrice);
-            productRepository.save(p); // 루프마다 저장 (비효율적)
+
+            products.add(p);    // 리스트에 추가
         }
+
+        productRepository.saveAll(products);    // 한번에 저장
     }
 }
