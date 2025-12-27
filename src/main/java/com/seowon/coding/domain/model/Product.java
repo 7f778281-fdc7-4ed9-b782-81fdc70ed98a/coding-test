@@ -42,9 +42,14 @@ public class Product {
     }
     
     public void decreaseStock(int quantity) {
-        if (quantity > stockQuantity) {
-            throw new IllegalArgumentException("Not enough stock available");
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + quantity);
         }
+
+        if (stockQuantity < quantity) {
+            throw new IllegalStateException("insufficient stock for product " + id);
+        }
+
         stockQuantity -= quantity;
     }
     

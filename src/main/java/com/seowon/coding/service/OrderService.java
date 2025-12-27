@@ -131,19 +131,14 @@ public class OrderService {
                 .build();
 
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
             Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+
+            product.decreaseStock(qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -151,16 +146,11 @@ public class OrderService {
                     .quantity(qty)
                     .price(product.getPrice())
                     .build();
-            order.getItems().add(item);
 
-            product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            order.addItem(item);
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.setTotalAmountWithShippingAndDiscount(couponCode);
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
