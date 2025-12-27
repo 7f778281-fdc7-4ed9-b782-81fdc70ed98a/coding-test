@@ -83,7 +83,7 @@ public class OrderController {
                     products.stream().map(r -> r.getProductId()).toList(),
                     products.stream().map(r -> r.getQuantity()).toList());
             return ResponseEntity.status(HttpStatus.CREATED).build();
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().build();
         }
     }
