@@ -1,9 +1,9 @@
 package com.seowon.coding.controller;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.dto.request.OrderRequest;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -67,4 +67,12 @@ public class OrderController {
      * }
      */
     //
+    @PostMapping("/{id}")
+    public ResponseEntity<Order> createOrder(@PathVariable Long id,OrderRequest orderRequest){
+//        Order createOrder = orderService.placeOrder(orderRequest.getCustomerName()
+//                , orderRequest.getCustomerEmail()
+//                , orderRequest.getProducts());
+//
+//        return ResponseEntity.created(createOrder);
+    }
 }
