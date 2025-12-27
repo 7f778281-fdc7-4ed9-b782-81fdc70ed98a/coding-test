@@ -165,6 +165,8 @@ public class OrderService {
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
+                // 처리 실패시 롤백하는 코드 필요
+                // 롤백 시 진행상황 전체 롤백
             }
         }
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
