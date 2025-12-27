@@ -70,7 +70,7 @@ public class OrderService {
 
         for (int i=0; i < productIds.size(); i++) {
             Long productId = productIds.get(i);
-            
+
             Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));;
             product.decreaseStock(quantities.get(i));
 
@@ -139,8 +139,8 @@ public class OrderService {
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.updateTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.updateStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
 
