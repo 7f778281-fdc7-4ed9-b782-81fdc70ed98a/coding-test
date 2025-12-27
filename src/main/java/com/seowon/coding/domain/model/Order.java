@@ -1,5 +1,6 @@
 package com.seowon.coding.domain.model;
 
+import com.seowon.coding.service.OrderProduct;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,6 +11,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.seowon.coding.domain.model.Order.OrderStatus.PENDING;
 
 @Entity
 @Table(name = "orders") // "order" is a reserved keyword in SQL
@@ -76,4 +79,16 @@ public class Order {
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
     }
+
+    Order order = Order.builder()
+            .customerName(customerName)
+            .customerEmail(customerEmail)
+            .status(PENDING)
+            .orderDate(LocalDateTime.now())
+            .items(new ArrayList<>())
+            .totalAmount(BigDecimal.ZERO)
+            .build();
+
+    BigDecimal subtotal = BigDecimal.ZERO;
+
 }
