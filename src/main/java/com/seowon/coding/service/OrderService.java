@@ -1,6 +1,5 @@
 package com.seowon.coding.service;
 
-import org.springframework.data.util.Pair;
 import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
@@ -10,13 +9,12 @@ import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
 import com.seowon.coding.util.ListFun;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -110,17 +108,9 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
+        Order order = Order.createEntity(customerName, customerEmail);
 
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
@@ -134,23 +124,14 @@ public class OrderService {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
 
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
+            OrderItem item = OrderItem.createEntity(order, product, qty);
+            order.addItem(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.calculateTotalAmount(couponCode);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
