@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.seowon.coding.service.OrderProduct;
+
 @Entity
 @Table(name = "orders") // "order" is a reserved keyword in SQL
 @Data
@@ -75,5 +77,38 @@ public class Order {
     
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+    }
+
+    public static Order createPending(String customerName,String customerEmail) {
+        return Order.builder()
+            .customerName(customerName)
+            .customerEmail(customerEmail)
+            .status(Order.OrderStatus.PENDING)
+            .orderDate(LocalDateTime.now())
+            .items(new ArrayList<>())
+            .totalAmount(BigDecimal.ZERO)
+            .build();
+    }
+
+    public void addProduct(Product product, int quantity) {
+        if (product == null || quantity <= 0 ) {
+        throw new IllegalArgumentException("productIds/quantities is empty");
+        }
+        product.decreaseStock(quantity); //재고감소
+        OrderItem item = OrderItem.builder()
+            .order(this)
+            .product(product)
+            .quantity(quantity)
+            .price(product.getPrice())
+            .build();
+        this.addItem(item);
+    }
+    public void finalcheckout(String couponCode) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
+        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
+
+        this.totalAmount = subtotal.add(shipping).subtract(discount);
+        this.status = Order.OrderStatus.PROCESSING;    
     }
 }
