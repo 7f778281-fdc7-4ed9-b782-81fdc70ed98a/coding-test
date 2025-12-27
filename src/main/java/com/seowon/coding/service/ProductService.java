@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,7 +52,8 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+
+        return productRepository.findByCategory(category);
     }
 
     /**
@@ -62,6 +64,7 @@ public class ProductService {
             throw new IllegalArgumentException("empty productIds");
         }
         // 잘못된 구현 예시: double 사용, 루프 내 개별 조회/저장, 하드코딩 세금/반올림 규칙
+        List<Product> products = new ArrayList<>();
         for (Long id : productIds) {
             Product p = productRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
@@ -74,7 +77,8 @@ public class ProductService {
             // 임의 반올림: 일관되지 않은 스케일/반올림 모드
             BigDecimal newPrice = BigDecimal.valueOf(changed).setScale(2, RoundingMode.HALF_UP);
             p.setPrice(newPrice);
-            productRepository.save(p); // 루프마다 저장 (비효율적)
+            products.add(p);
         }
+        productRepository.saveAll(products);
     }
 }
