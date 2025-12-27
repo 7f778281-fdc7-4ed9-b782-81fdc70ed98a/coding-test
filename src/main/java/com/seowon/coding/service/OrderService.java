@@ -8,6 +8,8 @@ import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.auditing.CurrentDateTimeProvider;
+import org.springframework.data.jpa.convert.threeten.Jsr310JpaConverters;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +18,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+
+import static com.seowon.coding.domain.model.Order.OrderStatus.PENDING;
 
 @Service
 @RequiredArgsConstructor
@@ -64,7 +69,27 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = new Order();
+
+        for (Long i = productIds.getFirst(); !Objects.equals(i, productIds.getLast());){
+            Product product = productRepository.findById(i)
+                    .orElseThrow(() -> new IllegalStateException("해당하는 상품이 존재하지 않습니다."));
+            OrderItem item = new OrderItem();
+            item.setOrder(order);
+            item.setProduct(product);
+            item.setQuantity(quantities.getFirst());
+            product.decreaseStock(quantities.getFirst());
+            quantities.removeFirst();
+            item.setPrice(product.getPrice());
+
+            order.addItem(item);
+        }
+
+        order.setStatus(PENDING);
+//        order.setOrderDate();
+
+        orderRepository.save(order);
+        return order;
     }
 
     /**
@@ -86,7 +111,7 @@ public class OrderService {
         Order order = Order.builder()
                 .customerName(customerName)
                 .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
+                .status(PENDING)
                 .orderDate(LocalDateTime.now())
                 .items(new ArrayList<>())
                 .totalAmount(BigDecimal.ZERO)
