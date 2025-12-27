@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -138,48 +141,76 @@ class OrderServiceTest {
 
     @Test
     void placeOrder() {
+        // Given - 테스트 데이터 준비
+        String testCustomerName = "John Doe";
+        String testCustomerEmail = "john@example.com";
+        String testCouponCode = "";
+
+        List<OrderProduct> orderProducts = new ArrayList<>();
+        orderProducts.add(new OrderProduct(1L, 2));  // Product1 2개
+        orderProducts.add(new OrderProduct(2L, 1));  // Product2 1개
+
+        // Product 조회 mock 설정
         when(productRepository.findById(1L)).thenReturn(Optional.of(product1));
         when(productRepository.findById(2L)).thenReturn(Optional.of(product2));
-        when(orderRepository.save(any(Order.class))).thenReturn(order1);
+        
+        // Order 저장 시 ID가 설정된 Order를 반환하도록 mock 설정
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            savedOrder.setId(1L);  // ID 설정
+            return savedOrder;
+        });
 
-        List<Long> productIds = Arrays.asList(1L, 2L);
-        List<Integer> quantities = Arrays.asList(2, 1);
-
-        Order placed = orderService.placeOrder("John Doe", "john@example.com", productIds, quantities);
-
-        assertNotNull(placed);
-        assertEquals("John Doe", placed.getCustomerName());
-        assertEquals("john@example.com", placed.getCustomerEmail());
-        assertEquals(Order.OrderStatus.PENDING, placed.getStatus());
-        assertEquals(2, placed.getItems().size());
-
-        verify(productRepository, atLeastOnce()).findById(1L);
-        verify(productRepository, atLeastOnce()).findById(2L);
-        verify(orderRepository, times(1)).save(any(Order.class));
-    }
-
-    @Test
-    void checkoutOrder() {
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product1));
-        when(productRepository.findById(2L)).thenReturn(Optional.of(product2));
-        when(orderRepository.save(any(Order.class))).thenReturn(order1);
-
-        List<OrderProduct> orderProducts = Arrays.asList(
-                new OrderProduct(1L, 2),
-                new OrderProduct(2L, 1)
+        // When - placeOrder 실행
+        Long savedOrderId = orderService.placeOrder(
+                testCustomerName, 
+                testCustomerEmail, 
+                orderProducts, 
+                testCouponCode
         );
 
-        Order placed = orderService.checkoutOrder("John Doe", "john@example.com", orderProducts, "SALE");
+        // Then - 결과 검증
+        assertNotNull(savedOrderId);
+        assertEquals(1L, savedOrderId);
 
-        assertNotNull(placed);
-        assertEquals("John Doe", placed.getCustomerName());
-        assertEquals("john@example.com", placed.getCustomerEmail());
-        assertEquals(Order.OrderStatus.PENDING, placed.getStatus());
-        assertEquals(2, placed.getItems().size());
-
+        // ArgumentCaptor로 저장된 Order 객체 캡처
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, times(1)).save(orderCaptor.capture());
+        
+        Order capturedOrder = orderCaptor.getValue();
+        
+        // Order 기본 정보 검증
+        assertEquals(testCustomerName, capturedOrder.getCustomerName());
+        assertEquals(testCustomerEmail, capturedOrder.getCustomerEmail());
+        assertEquals(Order.OrderStatus.PENDING, capturedOrder.getStatus());
+        assertNotNull(capturedOrder.getOrderDate());
+        
+        // OrderItem 검증
+        assertEquals(2, capturedOrder.getItems().size());
+        
+        // 첫 번째 아이템 검증
+        OrderItem firstItem = capturedOrder.getItems().get(0);
+        assertEquals(product1.getId(), firstItem.getProduct().getId());
+        assertEquals(2, firstItem.getQuantity());
+        assertEquals(product1.getPrice(), firstItem.getPrice());
+        
+        // 두 번째 아이템 검증
+        OrderItem secondItem = capturedOrder.getItems().get(1);
+        assertEquals(product2.getId(), secondItem.getProduct().getId());
+        assertEquals(1, secondItem.getQuantity());
+        assertEquals(product2.getPrice(), secondItem.getPrice());
+        
+        // 총 금액 검증 (Product1: 100 * 2 = 200, Product2: 200 * 1 = 200, 합계: 400, 배송비: 0)
+        assertEquals(0, new BigDecimal("400.00").compareTo(capturedOrder.getTotalAmount()));
+        
+        // 재고 감소 검증
+        assertEquals(8, product1.getStockQuantity());  // 10 - 2 = 8
+        assertEquals(19, product2.getStockQuantity()); // 20 - 1 = 19
+        
+        // Repository 호출 검증
         verify(productRepository, times(1)).findById(1L);
         verify(productRepository, times(1)).findById(2L);
         verify(orderRepository, times(1)).save(any(Order.class));
-
     }
+
 }
