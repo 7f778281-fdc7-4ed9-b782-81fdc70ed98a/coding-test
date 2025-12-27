@@ -115,6 +115,19 @@ public class OrderService {
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
      */
+
+    /**
+     * 1. ProcessingStatus의 한 작업에 대한 객체 생성 코드가 너무 많은 것 같습니다.
+     * 객체를 단순하게 찾는 것은 좋아보이나 같은 작업 Id에 대해서 ProcessingStatus을 생성한 코드가 너무 많아
+     * 한 작업 Id에 대해서 ProcessingStatus가 많아져 데이터 정합성에 문제가 생길 것 같습니다.
+     *
+     * 2. 매번 ps를 저장하기 보다는 JPA의 더티 체킹을 이용하면 좋을 것 같습니다.
+     *
+     * 3. 트랜잭션을 분리함으로써 한 쪽의 트랜잭션이 롤백됬을 때, 다른 트랜잭션은 롤백되지 않고 그대로 반영되어
+     * 데이터의 정합성에 불일치가 발생할 것 같습니다. 이에 대해 catch문에 정합성을 맞출 보상 예외 처리를 해야 할 것 같습니다.
+     *
+     * 4. 외부 시스템 연동, 대용량 계산을 해야하는 로직같은 경우에는 비동기 처리도 고려해볼만 할 것 같습니다.
+     */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
