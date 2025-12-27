@@ -1,5 +1,6 @@
 package com.seowon.coding.dto;
 
+import com.seowon.coding.service.OrderProduct;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,7 @@ public class OrderRequestDto {
 
     private String customerEmail;
 
-    private List<ProductDto> products;
+    private List<OrderProduct> products;
 }
 
 

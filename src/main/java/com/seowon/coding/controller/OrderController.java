@@ -2,7 +2,7 @@ package com.seowon.coding.controller;
 
 import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.dto.OrderRequestDto;
-import com.seowon.coding.dto.ProductDto;
+import com.seowon.coding.service.OrderProduct;
 import com.seowon.coding.service.OrderService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -77,7 +77,7 @@ public class OrderController {
     //
     @PostMapping("")
     public ResponseEntity<Void> createOrder(@RequestBody OrderRequestDto orderRequestDto) {
-        List<ProductDto> products = orderRequestDto.getProducts();
+        List<OrderProduct> products = orderRequestDto.getProducts();
         try {
             Order order = orderService.placeOrder(orderRequestDto.getCustomerName(), orderRequestDto.getCustomerEmail(),
                     products.stream().map(r -> r.getProductId()).toList(),
