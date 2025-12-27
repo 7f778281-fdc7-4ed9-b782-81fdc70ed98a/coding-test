@@ -8,6 +8,7 @@ import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.aspectj.weaver.ast.Or;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +65,28 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder()
+                    .customerName(customerName)
+                    .customerEmail(customerEmail)
+                    .orderDate(LocalDateTime.now())
+                    .build();
+        for(int i=0; i<productIds.size(); i++) {
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow(
+                    () -> new IllegalStateException("not found")
+            );
+            if(!product.isInStock() || product.getStockQuantity()<quantities.get(i)) {
+                throw new IllegalStateException("not enough stock");
+            }
+            OrderItem orderItem = OrderItem.builder()
+                            .product(product)
+                            .quantity(quantities.get(i))
+                            .build();
+            orderItem.setPrice(product.getPrice());
+            order.addItem(orderItem);
+            order.setStatus(Order.OrderStatus.PENDING);
+            product.decreaseStock(quantities.get(i));
+        }
+        return orderRepository.save(order);
     }
 
     /**
@@ -113,17 +135,14 @@ public class OrderService {
                     .quantity(qty)
                     .price(product.getPrice())
                     .build();
+
+
             order.getItems().add(item);
 
             product.decreaseStock(qty);
             subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
         }
-
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.checkoutOrder(subtotal, couponCode);
         return orderRepository.save(order);
     }
 
@@ -132,6 +151,8 @@ public class OrderService {
      * - 시나리오: 일괄 배송 처리 중 진행률을 저장하여 다른 사용자가 조회 가능해야 함.
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
+     *
+     *
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
