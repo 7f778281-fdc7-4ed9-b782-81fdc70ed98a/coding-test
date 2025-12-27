@@ -119,4 +119,63 @@ class ProductServiceTest {
         verify(productRepository, times(1)).findByCategory("Electronics");
     }
 
+    @Test
+    void applyBulkPriceChange_WithTax() {
+        // Given
+        List<Long> productIds = Arrays.asList(1L, 2L);
+        BigDecimal percentage = new BigDecimal("10"); // 10% 인상
+        
+        when(productRepository.findAllById(productIds)).thenReturn(Arrays.asList(product1, product2));
+        
+        // When
+        productService.applyBulkPriceChange(productIds, percentage, true);
+        
+        // Then
+        // Product1: 100 * 1.1 * 1.1 (세금 10%) = 121.00
+        assertEquals(0, new BigDecimal("121.00").compareTo(product1.getPrice()));
+        
+        // Product2: 200 * 1.1 * 1.1 (세금 10%) = 242.00
+        assertEquals(0, new BigDecimal("242.00").compareTo(product2.getPrice()));
+        
+        verify(productRepository, times(1)).findAllById(productIds);
+    }
+
+    @Test
+    void applyBulkPriceChange_NegativePercentage() {
+        // Given - 10% 인하
+        List<Long> productIds = List.of(1L);
+        BigDecimal percentage = new BigDecimal("-10");
+        
+        when(productRepository.findAllById(productIds)).thenReturn(List.of(product1));
+        
+        // When
+        productService.applyBulkPriceChange(productIds, percentage, false);
+        
+        // Then
+        // Product1: 100 * 0.9 = 90.00
+        assertEquals(0, new BigDecimal("90.00").compareTo(product1.getPrice()));
+    }
+
+    @Test
+    void applyBulkPriceChange_EmptyProductIds() {
+        // Given
+        List<Long> emptyIds = List.of();
+        
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> 
+            productService.applyBulkPriceChange(emptyIds, BigDecimal.TEN, false)
+        );
+    }
+
+    @Test
+    void applyBulkPriceChange_NullPercentage() {
+        // Given
+        List<Long> productIds = List.of(1L);
+        
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> 
+            productService.applyBulkPriceChange(productIds, null, false)
+        );
+    }
+
 }
