@@ -19,39 +19,53 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Product {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @NotBlank(message = "Product name is required")
     private String name;
-    
+
     private String description;
-    
+
     @Positive(message = "Price must be positive")
     private BigDecimal price;
-    
+
     private int stockQuantity;
-    
+
     private String category;
-    
+
     // Business logic
     public boolean isInStock() {
         return stockQuantity > 0;
     }
-    
+
     public void decreaseStock(int quantity) {
         if (quantity > stockQuantity) {
             throw new IllegalArgumentException("Not enough stock available");
         }
         stockQuantity -= quantity;
     }
-    
+
     public void increaseStock(int quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
         stockQuantity += quantity;
+    }
+
+
+
+    public void checkQTY(int qty) {
+        if (qty <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + qty);
+        }
+    }
+
+    public static void validQTY(Product product,int qty, Long pid) {
+        if (product.getStockQuantity() < qty) {
+            throw new IllegalStateException("insufficient stock for product " + pid);
+        }
     }
 }
