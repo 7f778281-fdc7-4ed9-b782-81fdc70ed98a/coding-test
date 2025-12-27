@@ -20,20 +20,19 @@ class PermissionChecker {
             List<Policy> policies
     ) {
         for (User user : users) {
-            if (user.id.equals(userId)) {
-                for (String groupId : user.groupIds) {
-                    for (UserGroup group : groups) {
-                        if (group.id.equals(groupId)) {
-                            for (String policyId : group.policyIds) {
-                                for (Policy policy : policies) {
-                                    if (policy.id.equals(policyId)) {
-                                        for (Statement statement : policy.statements) {
-                                            if (statement.actions.contains(targetAction) &&
-                                                statement.resources.contains(targetResource)) {
-                                                return true;
-                                            }
-                                        }
-                                    }
+            if(!user.id.equals(userId)) continue;
+
+            for (String groupId : user.groupIds) {
+                for (UserGroup group : groups) {
+                    if(!group.id.equals(groupId)) continue;
+
+                    for (String policyId : group.policyIds) {
+                        for (Policy policy : policies) {
+                            if(!policy.id.equals(policyId)) continue;
+
+                            for (Statement statement : policy.statements) {
+                                if (statement.actions.contains(targetAction) && statement.resources.contains(targetResource)) {
+                                    return true;
                                 }
                             }
                         }

@@ -7,7 +7,9 @@ import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
+import com.seowon.coding.util.ListFun;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,7 +66,33 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .items(new ArrayList<>())
+                .build();
+
+        List<Pair<Long, Integer>> zip = ListFun.zip(productIds, quantities);
+
+        order.setStatus(Order.OrderStatus.PENDING);
+        order.setOrderDate(LocalDateTime.now());
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        for(Pair<Long, Integer> p: zip) {
+            Product product = productRepository.findById(p.getFirst()).orElseThrow("cannot find product");
+            product.decreaseStock(p.getSecond());   // 수량 감소
+
+            OrderItem orderItem = OrderItem.builder()
+                    .order(order)
+                    .price(product.getPrice())
+                    .quantity(p.getSecond())
+                    .build();
+            orderItems.add(orderItem);
+        }
+
+        order.setItems(orderItems);
+
+        return orderRepository.save(order);
     }
 
     /**
@@ -133,6 +161,13 @@ public class OrderService {
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
      */
+
+    /*
+        코드 리뷰 작성
+        중간 진행률에 대해 자식 트랜잭션을 Requires_new로 생성하여 부모 트랜잭션과 분리해 사용함으로써 진행률 업데이트가 꼬이지 않게 함
+        다만 주문을 찾고 작업 상황을 변경하는 과정에서 대용량 처리가 발생하는 경우 진행률 저장 전까지 시간이 오래 걸릴 수 있다는 단점이 있음
+     */
+
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
