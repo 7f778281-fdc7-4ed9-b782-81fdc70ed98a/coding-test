@@ -16,27 +16,28 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
+
 
     public Order updateOrder(Long id, Order order) {
         if (!orderRepository.existsById(id)) {
@@ -45,7 +46,7 @@ public class OrderService {
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
@@ -54,7 +55,7 @@ public class OrderService {
     }
 
 
-
+    @Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +65,19 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = new Order(customerName, customerEmail);
+        order.setOrderStatusPending();
+        order.setOrderDateNow();
+        orderRepository.save(order);
+        for (int i = 0; i < productIds.size(); i++) {
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow(
+                    () -> new NoSuchElementException("해당하는 상품이 없습니다."));
+            OrderItem orderItem = new OrderItem(order, product,
+                    quantities.get(i), product.getPrice());
+            order.addOrderItem(orderItem);
+            product.decreaseStock(quantities.get(i));
+        }
+        return order;
     }
 
     /**
@@ -98,14 +111,7 @@ public class OrderService {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
-            Product product = productRepository.findById(pid)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
+            Product product = findByPid(pid, qty);
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -125,6 +131,18 @@ public class OrderService {
         order.setTotalAmount(subtotal.add(shipping).subtract(discount));
         order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
+    }
+
+    private Product findByPid(Long pid, int qty) {
+        Product product = productRepository.findById(pid)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
+        if (qty <= 0) {
+            throw new IllegalArgumentException("quantity must be positive: " + qty);
+        }
+        if (product.getStockQuantity() < qty) {
+            throw new IllegalStateException("insufficient stock for product " + pid);
+        }
+        return product;
     }
 
     /**
