@@ -70,7 +70,7 @@ public class OrderService {
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
             OrderItem oi = new OrderItem();
             oi.setProduct(product);
-            oi.setQuentities(quentities[i]);
+            oi.setQuantities(quantities[i]);
             // 해당 상품의 원가로 배정됐습니다. 
             // placeOrder의 POST 당시 구매가로 가져오기 위해서 다른 ARG가 더 필요합니다.
             oi.setPrice(product.getPrice());
@@ -91,15 +91,12 @@ public class OrderService {
     	for(Long pid : productIds) {
     		Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-    		if(product.getQuentity() > quentities[i]) {
-    			product.setQuentity(product.getQuentity() - quentities[i]);
-    		} else {
-    			// @Transactional
-    			// 위 코드로 placeOrder() 메서드에 예외처리가 나왔을 경우 
-    			// order와 orderItem들의 생성이 원자성에 의해 없던 일이 되는 걸로 압니다.
-    			// 현재 throw Exception을 함수 선언 뒤에 붙이지 못해(시그니처 변경X) 프린트 문으로 처리했습니다.
-    			System.out.println("재고가 부족합니다.");
-    		}
+//    		if(product.getQuantity() > quantities[i]) {
+//    			product.setQuantity(product.getQuantity() - quantities[i]);
+//    		} else {
+//    			System.out.println("재고가 부족합니다.");
+//    		}
+    		product.decreaseStock(quantities[i]);
     		
             i++;
     	}
@@ -128,14 +125,16 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
+//        Order order = Order.builder()
+//                .customerName(customerName)
+//                .customerEmail(customerEmail)
+//                .status(Order.OrderStatus.PENDING)
+//                .orderDate(LocalDateTime.now())
+//                .items(new ArrayList<>())
+//                .totalAmount(BigDecimal.ZERO)
+//                .build();
+        
+        Order order = Order.makeOrder(customerName, customerEmail, new ArrayList<>())
 
 
         BigDecimal subtotal = BigDecimal.ZERO;
@@ -152,12 +151,15 @@ public class OrderService {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
 
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
+//            OrderItem item = OrderItem.builder()
+//                    .order(order)
+//                    .product(product)
+//                    .quantity(qty)
+//                    .price(product.getPrice())
+//                    .build();
+            
+            OrderItem item = OrderItem.makeOrderItem(order, product, qty);
+            
             order.getItems().add(item);
 
             product.decreaseStock(qty);

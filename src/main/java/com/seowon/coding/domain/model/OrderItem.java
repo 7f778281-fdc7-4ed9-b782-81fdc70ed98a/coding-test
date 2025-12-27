@@ -31,6 +31,16 @@ public class OrderItem {
     
     private BigDecimal price; // Price at the time of order
     
+    public static OrderItem makeOrderItem(Order order, Product product, Integer Quantity) {
+    	return OrderItem.builder()
+                .order(order)
+                .product(product)
+                .quantity(qty)
+                .price(product.getPrice())
+                .build();
+    }
+    
+    
     // Business logic
     public BigDecimal getSubtotal() {
         return price.multiply(BigDecimal.valueOf(quantity));
