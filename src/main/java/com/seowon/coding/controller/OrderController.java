@@ -1,5 +1,7 @@
 package com.seowon.coding.controller;
 
+import com.seowon.coding.domain.dto.CreateOrderDTO;
+import com.seowon.coding.domain.dto.ProductDTO;
 import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -67,4 +69,16 @@ public class OrderController {
      * }
      */
     //
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<Void> createOrder(@RequestBody CreateOrderDTO createOrderDTO) {
+        List<Long> productIds = createOrderDTO.products().stream().map(
+                ProductDTO::productId
+        ).toList();
+        List<Integer> productQuantities = createOrderDTO.products().stream().map(
+                ProductDTO::quantity
+        ).toList();
+        orderService.placeOrder(createOrderDTO.customerName(), createOrderDTO.customerEmail(), productIds, productQuantities);
+        return ResponseEntity.noContent().build();
+    }
 }
