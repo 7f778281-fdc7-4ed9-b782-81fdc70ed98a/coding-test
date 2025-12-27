@@ -95,16 +95,6 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
-
         BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
@@ -134,8 +124,6 @@ public class OrderService {
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
 
