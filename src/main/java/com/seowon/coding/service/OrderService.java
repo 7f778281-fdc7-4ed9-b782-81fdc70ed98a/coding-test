@@ -64,7 +64,36 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        if(productIds.size() != quantities.size()){
+            throw new IllegalArgumentException("List size is not same");
+        }
+
+        Order order = new Order();
+        order.setCustomerName(customerName);
+        order.setCustomerEmail(customerEmail);
+        order.setStatus(Order.OrderStatus.PENDING);
+
+        for(int i = 0; i < productIds.size(); i++){
+            order.addItem(addOrderItem(productIds.get(i), quantities.get(i)));
+        }
+        order.setOrderDate(LocalDateTime.now());
+
+        orderRepository.save(order);
+
+        return order;
+    }
+
+    private OrderItem addOrderItem(Long productId, int quantity){
+        Product p = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
+
+        OrderItem orderItem = OrderItem.builder()
+                .product(p).price(p.getPrice()).quantity(quantity).build();
+        orderItem.getSubtotal();
+
+        p.decreaseStock(quantity);
+
+        return orderItem;
     }
 
     /**
@@ -113,17 +142,17 @@ public class OrderService {
                     .quantity(qty)
                     .price(product.getPrice())
                     .build();
-            order.getItems().add(item);
+            order.addItem(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(item.getSubtotal());
         }
 
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
         order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
