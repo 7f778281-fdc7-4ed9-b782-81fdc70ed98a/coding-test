@@ -55,6 +55,7 @@ public class OrderService {
     }
 
 
+    @Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +65,19 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = new Order(customerName, customerEmail);
+        order.setOrderStatusPending();
+        order.setOrderDateNow();
+        orderRepository.save(order);
+        for (int i = 0; i < productIds.size(); i++) {
+            Product product = productRepository.findById(productIds.get(i)).orElseThrow(
+                    () -> new NoSuchElementException("해당하는 상품이 없습니다."));
+            OrderItem orderItem = new OrderItem(order, product,
+                    quantities.get(i), product.getPrice());
+            order.addOrderItem(orderItem);
+            product.decreaseStock(quantities.get(i));
+        }
+        return order;
     }
 
     /**
