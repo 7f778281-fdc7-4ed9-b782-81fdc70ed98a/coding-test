@@ -1,6 +1,7 @@
 package com.seowon.coding.service;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
@@ -64,6 +65,23 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .build();
+        productIds.stream().map(
+                productId -> productRepository.findById(productId).get()
+        ).map(product -> OrderItem.builder().order(order).product(product).build())
+                        .forEach(order::addItem);
+        order.setStatus(OrderStatus.PENDING);
+        order.setOrderDate(LocalDateTime.now());
+        orderRepository.save(order);
+        List<OrderItem> orderItems = order.getItems();
+        for(int i=0; i<quantities.size(); i++) {
+            Product product = orderItems.get(i).getProduct();
+            product.setStockQuantity(quantities.get(i));
+            productRepository.save(product);
+        }
         return null;
     }
 
