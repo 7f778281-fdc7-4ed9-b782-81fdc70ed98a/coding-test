@@ -1,26 +1,29 @@
 package com.seowon.coding.controller;
 
+import com.seowon.coding.controller.dto.request.OrderRequestDto;
+import com.seowon.coding.controller.dto.request.ProductDto;
 import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.service.OrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
 public class OrderController {
-    
+
     private final OrderService orderService;
-    
+
     @GetMapping
     public ResponseEntity<List<Order>> getAllOrders() {
         return ResponseEntity.ok(orderService.getAllOrders());
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<Order> getOrderById(@PathVariable Long id) {
         return orderService.getOrderById(id)
@@ -37,7 +40,7 @@ public class OrderController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
         try {
@@ -47,7 +50,7 @@ public class OrderController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     /**
      * TODO #2: 주문을 생성하는 API 구현
      * 구현목록:
@@ -55,7 +58,7 @@ public class OrderController {
      * 2. orderService.placeOrder 호출
      * 3. 주문 생성시 HTTP 201 CREATED 반환
      * 4. 필요한 DTO 생성
-     * 
+     * <p>
      * Request body 예시:
      * {
      *   "customerName": "John Doe",
@@ -67,4 +70,16 @@ public class OrderController {
      * }
      */
     //
+    @PostMapping
+    public ResponseEntity<URI> createOrder(
+            @Valid @RequestBody OrderRequestDto dto
+    ) {
+        List<Long> productIds = dto.getProducts().stream().map(ProductDto::getProductId).toList();
+        List<Integer> productQuantities = dto.getProducts().stream().map(ProductDto::getQuantity).toList();
+
+        Long id = orderService.placeOrder(dto.getCustomerName(), dto.getCustomerEmail(), productIds, productQuantities)
+                .getId();
+
+        return ResponseEntity.created(URI.create("/api/orders/" + id)).build();
+    }
 }

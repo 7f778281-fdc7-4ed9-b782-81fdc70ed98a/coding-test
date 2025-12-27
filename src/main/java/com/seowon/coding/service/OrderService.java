@@ -7,14 +7,14 @@ import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
+import com.seowon.coding.util.ListFun;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,13 +58,38 @@ public class OrderService {
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
+        Order newOrder = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .build();
         // * 지정된 Product를 주문에 추가
+            // product 찾기, 개수 mapping 하기
+        List<Product> products = productRepository.findAllById(productIds);
+        List<Pair<Product, Integer>> pairs = ListFun.zip(products, quantities);
+        pairs.forEach(pair -> {
+            for (int i = 1; i <= pair.getSecond(); i++) {
+                OrderItem item = OrderItem.builder()
+                        .order(newOrder)
+                        .product(pair.getFirst())
+                        .build();
+                newOrder.addItem(item);
+            }
+        });
+
         // * order 의 상태를 PENDING 으로 변경
+        newOrder.setStatus(Order.OrderStatus.PENDING);
         // * orderDate 를 현재시간으로 설정
+        newOrder.setOrderDate(LocalDateTime.now());
         // * order 를 저장
+        Order savedOrder = orderRepository.save(newOrder);
         // * 각 Product 의 재고를 수정
+        pairs.forEach(pair -> {
+            Product product = pair.getFirst();
+            Integer quantity = pair.getSecond();
+            product.decreaseStock(quantity);
+        });
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        return savedOrder;
     }
 
     /**
@@ -83,17 +108,9 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
+        Order order = Order.createEntity(customerName, customerEmail);
 
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
@@ -107,23 +124,14 @@ public class OrderService {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
 
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
+            OrderItem item = OrderItem.createEntity(order, product, qty);
+            order.addItem(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.calculateTotalAmount(couponCode);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
 
