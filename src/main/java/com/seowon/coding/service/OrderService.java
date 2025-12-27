@@ -4,6 +4,7 @@ import com.seowon.coding.domain.model.Order;
 import com.seowon.coding.domain.model.OrderItem;
 import com.seowon.coding.domain.model.ProcessingStatus;
 import com.seowon.coding.domain.model.Product;
+import com.seowon.coding.domain.model.Order.OrderStatus;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
@@ -22,21 +23,20 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
 
     public Order updateOrder(Long id, Order order) {
         if (!orderRepository.existsById(id)) {
@@ -45,7 +45,7 @@ public class OrderService {
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
@@ -53,9 +53,9 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-
-
-    public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
+    @Transactional
+    public Order placeOrder(String customerName, String customerEmail, List<Long> productIds,
+            List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
         // * 지정된 Product를 주문에 추가
@@ -64,7 +64,20 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        Order order = Order.builder().customerName(customerName).customerEmail(customerEmail)
+                .status(OrderStatus.PENDING).items(new ArrayList<>()).orderDate(LocalDateTime.now()).build();
+
+        for (int i = 0; i < productIds.size(); i++) {
+            Long productId = productIds.get(i);
+            Integer quantity = quantities.get(i);
+
+            Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product Not Found: " +  productId));
+            product.decreaseStock(quantity);
+
+            order.getItems().add(OrderItem.builder().product(product).quantity(quantity).build());
+        }
+
+        return orderRepository.save(order);
     }
 
     /**
@@ -73,9 +86,9 @@ public class OrderService {
      * - #3 에서 추가한 도메인 메소드가 있을 경우 사용해도 됩니다.
      */
     public Order checkoutOrder(String customerName,
-                               String customerEmail,
-                               List<OrderProduct> orderProducts,
-                               String couponCode) {
+            String customerEmail,
+            List<OrderProduct> orderProducts,
+            String couponCode) {
         if (customerName == null || customerEmail == null) {
             throw new IllegalArgumentException("customer info required");
         }
@@ -92,7 +105,6 @@ public class OrderService {
                 .totalAmount(BigDecimal.ZERO)
                 .build();
 
-
         BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
@@ -103,6 +115,8 @@ public class OrderService {
             if (qty <= 0) {
                 throw new IllegalArgumentException("quantity must be positive: " + qty);
             }
+
+            
             if (product.getStockQuantity() < qty) {
                 throw new IllegalStateException("insufficient stock for product " + pid);
             }
@@ -119,11 +133,7 @@ public class OrderService {
             subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
         }
 
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.calculatingTotalAmount(subtotal, couponCode);
         return orderRepository.save(order);
     }
 
@@ -132,6 +142,10 @@ public class OrderService {
      * - 시나리오: 일괄 배송 처리 중 진행률을 저장하여 다른 사용자가 조회 가능해야 함.
      * - 리뷰 포인트: proxy 및 transaction 분리, 예외 전파/롤백 범위, 가독성 등
      * - 상식적인 수준에서 요구사항(기획)을 가정하며 최대한 상세히 작성하세요.
+     * 
+     * - 저장 트랜잭션을 분리하여 진행하였는데 기존에 사용중인 스레드가 아닌 새로운 스레드를 사용하여 진행률을 업데이트 하는 방법을 사용하여 비즈니스 로직과 분리하는 부분이 인상깊었습니다.
+     * - try - catch 를 사용하여 예외 상황에 따라 log를 남긴다거나 하는 등의 더 명확한 예외처리가 있었으면 좋겠습니다.
+     * 
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
