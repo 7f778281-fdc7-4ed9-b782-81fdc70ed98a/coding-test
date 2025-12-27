@@ -143,8 +143,13 @@ public class OrderService {
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
+		//현재 배송 처리중인 작업이면 DB에서 조회하고, 아니면 DB에서 새로 생성
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
                 .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
+
+		//orderIds가 없으면 0, 있으면 orderIds.size()로 total 값을 업데이트.
+		//상태를 RUNNING으로 업데이트 후 DB에 저장
+		//이때 실제로 데이터베이스에 저장하는게 아니라 1차캐시에 저장됨
         ps.markRunning(orderIds == null ? 0 : orderIds.size());
         processingStatusRepository.save(ps);
 
@@ -152,12 +157,15 @@ public class OrderService {
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
+				// o.setStatus 보다는 Order에 있는 markAsProcessing 메서드를 사용하도록 변경해야함
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
+				// 기존 트랜잭션말고 새로운 트랜잭션에서 진행하게 해서, 진행률 저장에 실패하더라도 bulkShipOrdersParent 트랜잭션은 실패하지 않음
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
             }
         }
+		//모든 작업이 끝났으므로 상태를 COMPLETED로 변경후 저장. 데이터베이스에 FLUSH
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);
