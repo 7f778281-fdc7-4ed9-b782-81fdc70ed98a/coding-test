@@ -59,4 +59,15 @@ public class Product {
         }
         stockQuantity += quantity;
     }
+
+    public void changePriceBulk(Double tax, double percentage) {
+        float base = price == null ? 0.0f : price.floatValue();
+        float changed = base + (base * ((float) percentage / 100.0f));
+
+        if (tax != null) {
+            changed *= tax;
+        }
+
+        price = BigDecimal.valueOf(Math.round(changed));
+    }
 }
