@@ -77,8 +77,6 @@ public class OrderService {
             OrderItem orderItem = OrderItem.builder().order(order).product(product).quantity(quantities.get(i)).price(product.getPrice()).build();
             order.addItem(orderItem);
         }
-        
-        order.recalculateTotalAmount();
 
         orderRepository.save(order);
         return null;
