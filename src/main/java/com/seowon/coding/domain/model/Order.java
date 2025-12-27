@@ -1,5 +1,6 @@
 package com.seowon.coding.domain.model;
 
+import com.seowon.coding.service.OrderProduct;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -49,6 +50,14 @@ public class Order {
         items.remove(item);
         item.setOrder(null);
         recalculateTotalAmount();
+    }
+
+    public void updateTotalAmount(BigDecimal totalAmount) {
+        this.totalAmount = totalAmount;
+    }
+
+    public void updateStatus(OrderStatus status) {
+        this.status = status;
     }
     
     public void recalculateTotalAmount() {

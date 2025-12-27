@@ -64,6 +64,23 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
+
+
+        Order order = Order.builder().orderDate(LocalDateTime.now()).customerName(customerName).customerEmail(customerEmail).status(Order.OrderStatus.PENDING).build();
+
+        for (int i=0; i < productIds.size(); i++) {
+            Long productId = productIds.get(i);
+
+            Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));;
+            product.decreaseStock(quantities.get(i));
+
+            productRepository.save(product);
+
+            OrderItem orderItem = OrderItem.builder().order(order).product(product).quantity(quantities.get(i)).price(product.getPrice()).build();
+            order.addItem(orderItem);
+        }
+
+        orderRepository.save(order);
         return null;
     }
 
@@ -122,8 +139,8 @@ public class OrderService {
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.updateTotalAmount(subtotal.add(shipping).subtract(discount));
+        order.updateStatus(Order.OrderStatus.PROCESSING);
         return orderRepository.save(order);
     }
 
@@ -148,6 +165,8 @@ public class OrderService {
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
+                // 처리 실패시 롤백하는 코드 필요
+                // 롤백 시 진행상황 전체 롤백
             }
         }
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
