@@ -7,6 +7,7 @@ import com.seowon.coding.domain.model.Product;
 import com.seowon.coding.domain.repository.OrderRepository;
 import com.seowon.coding.domain.repository.ProcessingStatusRepository;
 import com.seowon.coding.domain.repository.ProductRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -53,8 +54,6 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-
-
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
@@ -64,7 +63,31 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        OrderItem orderItem = new OrderItem();
+        for (Long productId : productIds) {
+            Product product = productRepository.findById(productId).orElseThrow(EntityNotFoundException::new);
+            orderItem.setProduct(product);
+            product.decreaseStock(1);
+        }
+        for (Integer quantity : quantities) {
+            orderItem.setQuantity(quantity);
+        }
+        orderItems.add(orderItem);
+
+        Order order = Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .items(orderItems)
+                .totalAmount(BigDecimal.valueOf(orderItems.size()))
+                .build();
+
+        this.orderRepository.save(order);
+
+        return order;
     }
 
     /**
@@ -136,25 +159,28 @@ public class OrderService {
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
-                .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
-        ps.markRunning(orderIds == null ? 0 : orderIds.size());
+                .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build())); // sava를 하는 과정에서 build를 두 번 중복하는 것이 좋지 않는 방법이라고 생각됩니다.
+        ps.markRunning(orderIds == null ? 0 : orderIds.size());  // 물음표 연산자를 쓰는 것보다 쉽게 if조건문을 통해 적는 것이 보다 가독성에 좋다고 생각됩니다.
         processingStatusRepository.save(ps);
 
         int processed = 0;
-        for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
+        for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {  // 마찬가지로 길이를 줄이고자 물음표 연산을 사용하는 것 보다 가독성이 있는 조건문을 사용하는 것이 더 좋을 것이라고 생각됩니다.
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
+                // 어떤 예외가 발생할 것인지 커스텀 예외를 통해 적어두는 것이 좋다고 생각됩니다.
             }
         }
+
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);
     }
 
+    // 콘트롤러에서 사용되지 않고 위 bulkShipOrdersParent에서만 사용될 것으로 추측되므로 이 메서드는 private으로 만들어야 할 것 같습니다.
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateProgressRequiresNew(String jobId, int processed, int total) {
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
