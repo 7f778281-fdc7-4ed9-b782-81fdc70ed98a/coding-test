@@ -69,7 +69,9 @@ public class OrderService {
         Order order = Order.builder().orderDate(LocalDateTime.now()).customerName(customerName).customerEmail(customerEmail).status(Order.OrderStatus.PENDING).build();
 
         for (int i=0; i < productIds.size(); i++) {
-            Product product = productRepository.getById(productIds.get(i));
+            Long productId = productIds.get(i);
+            
+            Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));;
             product.decreaseStock(quantities.get(i));
 
             productRepository.save(product);
