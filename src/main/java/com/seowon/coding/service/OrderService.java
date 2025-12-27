@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -54,9 +56,8 @@ public class OrderService {
     }
 
 
-
+	@Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
-        // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
         // * 지정된 Product를 주문에 추가
         // * order 의 상태를 PENDING 으로 변경
@@ -64,7 +65,34 @@ public class OrderService {
         // * order 를 저장
         // * 각 Product 의 재고를 수정
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+		Order order = Order.create(customerName,customerEmail);
+
+		Map<Long, Integer> map = new HashMap<>();
+		for (int i = 0; i < productIds.size(); i++) {
+			map.put(productIds.get(i), quantities.get(i));
+		}
+
+		List<Product> products = productIds.stream()
+			.map(id -> {
+				Optional<Product> product = productRepository.findById(id);
+				if(product.isEmpty()) {
+					throw new IllegalArgumentException("Product not found with id: " + id);
+				}
+				return product.get();
+				})
+			.toList();
+
+		List<OrderItem> orderItems = products.stream()
+			.map(p -> OrderItem.create(order, p, map.get(p.getId()), p.getPrice()))
+			.toList();
+
+		products.forEach(p -> p.decreaseStock(map.get(p.getId())));
+
+		orderItems.forEach(order::addItem);
+
+		productRepository.saveAll(products);
+
+		return orderRepository.save(order);
     }
 
     /**
@@ -83,15 +111,7 @@ public class OrderService {
             throw new IllegalArgumentException("orderReqs invalid");
         }
 
-        Order order = Order.builder()
-                .customerName(customerName)
-                .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
-                .orderDate(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
-
+		Order order = Order.create(customerName, customerEmail);
 
         BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
@@ -100,30 +120,18 @@ public class OrderService {
 
             Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
-
-            OrderItem item = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(qty)
-                    .price(product.getPrice())
-                    .build();
-            order.getItems().add(item);
-
+			product.checkStock(qty);
+			OrderItem item = OrderItem.create(order, product, qty, product.getPrice());
+			order.addItem(item);
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
+            subtotal = subtotal.add(item.getSubtotal());
         }
 
         BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
         BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
 
         order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+		order.markAsProcessing();
         return orderRepository.save(order);
     }
 
@@ -135,8 +143,13 @@ public class OrderService {
      */
     @Transactional
     public void bulkShipOrdersParent(String jobId, List<Long> orderIds) {
+		//현재 배송 처리중인 작업이면 DB에서 조회하고, 아니면 DB에서 새로 생성
         ProcessingStatus ps = processingStatusRepository.findByJobId(jobId)
                 .orElseGet(() -> processingStatusRepository.save(ProcessingStatus.builder().jobId(jobId).build()));
+
+		//orderIds가 없으면 0, 있으면 orderIds.size()로 total 값을 업데이트.
+		//상태를 RUNNING으로 업데이트 후 DB에 저장
+		//이때 실제로 데이터베이스에 저장하는게 아니라 1차캐시에 저장됨
         ps.markRunning(orderIds == null ? 0 : orderIds.size());
         processingStatusRepository.save(ps);
 
@@ -144,12 +157,15 @@ public class OrderService {
         for (Long orderId : (orderIds == null ? List.<Long>of() : orderIds)) {
             try {
                 // 오래 걸리는 작업 이라는 가정 시뮬레이션 (예: 외부 시스템 연동, 대용량 계산 등)
+				// o.setStatus 보다는 Order에 있는 markAsProcessing 메서드를 사용하도록 변경해야함
                 orderRepository.findById(orderId).ifPresent(o -> o.setStatus(Order.OrderStatus.PROCESSING));
                 // 중간 진행률 저장
+				// 기존 트랜잭션말고 새로운 트랜잭션에서 진행하게 해서, 진행률 저장에 실패하더라도 bulkShipOrdersParent 트랜잭션은 실패하지 않음
                 this.updateProgressRequiresNew(jobId, ++processed, orderIds.size());
             } catch (Exception e) {
             }
         }
+		//모든 작업이 끝났으므로 상태를 COMPLETED로 변경후 저장. 데이터베이스에 FLUSH
         ps = processingStatusRepository.findByJobId(jobId).orElse(ps);
         ps.markCompleted();
         processingStatusRepository.save(ps);

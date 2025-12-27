@@ -37,7 +37,17 @@ public class Order {
     private List<OrderItem> items = new ArrayList<>();
     
     private BigDecimal totalAmount;
-    
+
+	static public Order create(String customerName, String customerEmail) {
+		return Order.builder()
+			.customerEmail(customerEmail)
+			.customerName(customerName)
+			.status(OrderStatus.PENDING)
+			.orderDate(LocalDateTime.now())
+			.totalAmount(BigDecimal.ZERO)
+			.build();
+	}
+
     // Business logic
     public void addItem(OrderItem item) {
         items.add(item);
