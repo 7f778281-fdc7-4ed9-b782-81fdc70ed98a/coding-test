@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.seowon.coding.domain.model.Order.OrderStatus;
+
 @Entity
 @Table(name = "orders") // "order" is a reserved keyword in SQL
 @Data
@@ -71,6 +73,16 @@ public class Order {
     
     public void markAsCancelled() {
         this.status = OrderStatus.CANCELLED;
+    }
+
+    public void calculatingTotalAmount(BigDecimal subtotal, String couponCode) {
+        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO
+                : new BigDecimal("5.00");
+        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00")
+                : BigDecimal.ZERO;
+
+        totalAmount = subtotal.add(shipping).subtract(discount);
+        status = OrderStatus.PROCESSING;
     }
     
     public enum OrderStatus {

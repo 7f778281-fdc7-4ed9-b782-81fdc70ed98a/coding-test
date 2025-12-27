@@ -1,26 +1,34 @@
 package com.seowon.coding.controller;
 
 import com.seowon.coding.domain.model.Order;
+import com.seowon.coding.domain.model.OrderItem;
+import com.seowon.coding.dto.CreateOrderRequestDto;
+import com.seowon.coding.dto.CreateOrderResponseDto;
+import com.seowon.coding.dto.OrderItemDto;
 import com.seowon.coding.service.OrderService;
 import lombok.RequiredArgsConstructor;
+
+import org.apache.catalina.connector.Response;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ObjectInputFilter.Status;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
 public class OrderController {
-    
+
     private final OrderService orderService;
-    
+
     @GetMapping
     public ResponseEntity<List<Order>> getAllOrders() {
         return ResponseEntity.ok(orderService.getAllOrders());
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<Order> getOrderById(@PathVariable Long id) {
         return orderService.getOrderById(id)
@@ -37,7 +45,7 @@ public class OrderController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
         try {
@@ -47,7 +55,7 @@ public class OrderController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     /**
      * TODO #2: 주문을 생성하는 API 구현
      * 구현목록:
@@ -58,13 +66,27 @@ public class OrderController {
      * 
      * Request body 예시:
      * {
-     *   "customerName": "John Doe",
-     *   "customerEmail": "john@example.com",
-     *   "products": [
-     *     {"productId": 1, "quantity": 2},
-     *     {"productId": 3, "quantity": 1}
-     *   ]
+     * "customerName": "John Doe",
+     * "customerEmail": "john@example.com",
+     * "products": [
+     * {"productId": 1, "quantity": 2},
+     * {"productId": 3, "quantity": 1}
+     * ]
      * }
      */
     //
+    @PostMapping
+    public ResponseEntity<CreateOrderResponseDto> createOrder(@RequestBody CreateOrderRequestDto request) {
+        List<Long> productIds = null;
+        List<Integer> quantities = null;
+
+        for (OrderItemDto item : request.getOrderItemDtos()) {
+            productIds.add(item.getProductId());
+            quantities.add(item.getQuantity());
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(CreateOrderResponseDto.from(orderService
+                .placeOrder(request.getName(), request.getEmail(), productIds, quantities)));
+    }
+
 }
