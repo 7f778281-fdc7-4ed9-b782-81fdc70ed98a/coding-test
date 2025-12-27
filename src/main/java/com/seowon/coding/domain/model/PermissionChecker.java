@@ -21,24 +21,9 @@ class PermissionChecker {
     ) {
         for (User user : users) {
             if (user.id.equals(userId)) {
-                for (String groupId : user.groupIds) {
-                    for (UserGroup group : groups) {
-                        if (group.id.equals(groupId)) {
-                            for (String policyId : group.policyIds) {
-                                for (Policy policy : policies) {
-                                    if (policy.id.equals(policyId)) {
-                                        for (Statement statement : policy.statements) {
-                                            if (statement.actions.contains(targetAction) &&
-                                                statement.resources.contains(targetResource)) {
-                                                return true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+				if(user.hasPermission(groups, policies, targetAction, targetResource)) {
+					return true;
+				}
             }
         }
         return false;
@@ -53,6 +38,24 @@ class User {
         this.id = id;
         this.groupIds = groupIds;
     }
+
+	public boolean hasPermission(
+		List<UserGroup> groups,
+		List<Policy> policies,
+		String targetAction,
+		String targetResource
+	){
+		for (String groupId : groupIds) {
+			for (UserGroup group : groups) {
+				if (group.id.equals(groupId)) {
+					if(group.checkPolicies(targetAction, targetResource, policies)){
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
 }
 
 class UserGroup {
@@ -63,6 +66,19 @@ class UserGroup {
         this.id = id;
         this.policyIds = policyIds;
     }
+
+	public boolean checkPolicies(String action, String resource, List<Policy> policies) {
+		for (String policyId : policyIds) {
+			for (Policy policy : policies) {
+				if (policy.id.equals(policyId)) {
+					if(policy.checkStatement(action, resource)) {
+						return  true;
+					}
+				}
+			}
+		}
+		return false;
+	}
 }
 
 class Policy {
@@ -73,6 +89,14 @@ class Policy {
         this.id = id;
         this.statements = statements;
     }
+
+	public boolean checkStatement(String action, String resource) {
+		for (Statement statement : statements) {
+			if(statement.hasActionAndResource(action, resource))
+				return  true;
+		}
+		return false;
+	}
 }
 
 class Statement {
@@ -84,4 +108,9 @@ class Statement {
         this.actions = actions;
         this.resources = resources;
     }
+
+
+	public boolean hasActionAndResource(String action, String resource) {
+		return actions.contains(action) && resources.contains(resource);
+	}
 }
