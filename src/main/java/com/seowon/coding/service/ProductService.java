@@ -15,23 +15,23 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class ProductService {
-    
+
     private final ProductRepository productRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Product> getAllProducts() {
         return productRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Product> getProductById(Long id) {
         return productRepository.findById(id);
     }
-    
+
     public Product createProduct(Product product) {
         return productRepository.save(product);
     }
-    
+
     public Product updateProduct(Long id, Product product) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -39,7 +39,7 @@ public class ProductService {
         product.setId(id);
         return productRepository.save(product);
     }
-    
+
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -51,7 +51,8 @@ public class ProductService {
     public List<Product> findProductsByCategory(String category) {
         // TODO #1: 구현 항목
         // Repository를 사용하여 category 로 찾을 제품목록 제공
-        return List.of();
+
+        return productRepository.findByCategory(category);
     }
 
     /**
