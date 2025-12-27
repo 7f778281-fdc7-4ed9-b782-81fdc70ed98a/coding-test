@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static com.seowon.coding.domain.model.Order.OrderStatus.PENDING;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -26,7 +28,9 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+    private final Order order;
+    private final OrderItem orderItem;
+    private final Product product;
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
@@ -58,11 +62,19 @@ public class OrderService {
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
+        List<Order> userOrders = orderRepository.findByCustomerEmail(customerEmail);
+        Order userOrder = userOrders.get(0);
         // * 지정된 Product를 주문에 추가
+        Product products = productRepository.findById(productIds.get(0)).orElseThrow(()-> new RuntimeException());
+        userOrder.setItems(orderItem.setProduct(products));
         // * order 의 상태를 PENDING 으로 변경
+        userOrder.setStatus(PENDING);
         // * orderDate 를 현재시간으로 설정
+        userOrder.setOrderDate(LocalDateTime.now());
         // * order 를 저장
+        orderRepository.save(userOrder);
         // * 각 Product 의 재고를 수정
+        product.decreaseStock(quantities.get(0));
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
         return null;
     }
@@ -86,7 +98,7 @@ public class OrderService {
         Order order = Order.builder()
                 .customerName(customerName)
                 .customerEmail(customerEmail)
-                .status(Order.OrderStatus.PENDING)
+                .status(PENDING)
                 .orderDate(LocalDateTime.now())
                 .items(new ArrayList<>())
                 .totalAmount(BigDecimal.ZERO)
