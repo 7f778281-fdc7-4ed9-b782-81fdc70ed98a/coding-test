@@ -1,5 +1,6 @@
 package com.seowon.coding.dto;
 
+import com.seowon.coding.service.OrderProduct;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -7,7 +8,6 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Builder
@@ -16,11 +16,11 @@ import java.util.stream.Collectors;
 public class OrderCreateRequestDto {
     private String customerName;
     private String customerEmail;
-    private List<OrderProducts> products;
+    private List<OrderProduct> products;
 
     public List<Long> getProductIds() {
         List<Long> ids = new ArrayList<>();
-        for (OrderProducts orderProducts : products) {
+        for (OrderProduct orderProducts : products) {
             ids.add(orderProducts.getProductId());
         }
         return ids;
@@ -28,7 +28,7 @@ public class OrderCreateRequestDto {
 
     public List<Integer> getProductQuantities() {
         List<Integer> quantities = new ArrayList<>();
-        for (OrderProducts orderProducts : products) {
+        for (OrderProduct orderProducts : products) {
             quantities.add(orderProducts.getQuantity());
         }
         return quantities;
